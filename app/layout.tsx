@@ -19,7 +19,6 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
 })
 
-// Update the metadata title to "crank-io"
 export const metadata: Metadata = {
   title: "crank-io",
   description: "Control audio playback with keyboard input",

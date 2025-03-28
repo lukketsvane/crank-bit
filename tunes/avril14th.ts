@@ -505,7 +505,7 @@ const convertMidiToTuneEvents = (midiData: MidiData): NoteEvent[] => {
     if (track.notes.length === 0) return
 
     track.notes.forEach((note) => {
-      if (note.name === "G#3") return // Skip G#3 notes
+      if (note.name === "G#3") return 
 
       const existingEventIndex = events.findIndex(
         (e) => e.time === note.time && (e.note === note.name || (Array.isArray(e.note) && e.note.includes(note.name))),

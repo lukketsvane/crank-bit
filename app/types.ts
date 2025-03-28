@@ -58,14 +58,12 @@ export type SynthType = "Sine" | "Saw" | "Square" | "Triangle" | "Music Box"
 export type Scale = "Major Pentatonic" | "Minor Pentatonic" | "Stack of 4ths"
 export type Mode = "Live" | "Dark" | "Light"
 
-// Define the grid structure
 export interface GridCell {
   active: boolean
   note: Note
   beat: number
 }
 
-// Add a type for our save/load functionality
 export interface SavedTune {
   name: string
   bpm: number

@@ -1,14 +1,11 @@
-// tunes/pokemonLeafGreen.ts
 import type { TuneData, NoteEvent } from "./types"
 
-// Pokemon Leaf Green soundtrack tune with various instrument sounds
 const pokemonLeafGreen: TuneData = {
   name: "Pokemon Leaf Green",
   bpm: 120,
-  synthType: "Music Box", // Default synth type for the tune
-  totalBeats: 32, // 8 bars of 4 beats each
+  synthType: "Music Box", 
+  totalBeats: 32, 
   pattern: [
-    // Main melody - Music Box
     { time: 0, note: "E5", duration: 0.5, velocity: 0.9, synthType: "Music Box" },
     { time: 0.5, note: "G5", duration: 0.5, velocity: 0.9, synthType: "Music Box" },
     { time: 1, note: "A5", duration: 0.5, velocity: 0.9, synthType: "Music Box" },
@@ -26,7 +23,6 @@ const pokemonLeafGreen: TuneData = {
     { time: 6.5, note: "G5", duration: 0.5, velocity: 0.9, synthType: "Music Box" },
     { time: 7, note: "E5", duration: 1, velocity: 0.9, synthType: "Music Box" },
     
-    // Second part of melody - Music Box
     { time: 8, note: "G5", duration: 0.5, velocity: 0.9, synthType: "Music Box" },
     { time: 8.5, note: "B5", duration: 0.5, velocity: 0.9, synthType: "Music Box" },
     { time: 9, note: "C6", duration: 0.5, velocity: 0.9, synthType: "Music Box" },
@@ -43,7 +39,6 @@ const pokemonLeafGreen: TuneData = {
     { time: 14.5, note: "C6", duration: 0.5, velocity: 0.9, synthType: "Music Box" },
     { time: 15, note: "A5", duration: 1, velocity: 0.9, synthType: "Music Box" },
     
-    // Bass line - Square wave
     { time: 0, note: "E3", duration: 1, velocity: 0.7, synthType: "Square" },
     { time: 1, note: "B3", duration: 1, velocity: 0.7, synthType: "Square" },
     { time: 2, note: "A3", duration: 1, velocity: 0.7, synthType: "Square" },
@@ -64,7 +59,6 @@ const pokemonLeafGreen: TuneData = {
     { time: 14, note: "D4", duration: 1, velocity: 0.7, synthType: "Square" },
     { time: 15, note: "A3", duration: 1, velocity: 0.7, synthType: "Square" },
     
-    // Accompaniment chords - Saw wave
     { time: 0, note: ["E4", "G4", "B4"], duration: 2, velocity: 0.5, synthType: "Saw" },
     { time: 2, note: ["A4", "C5", "E5"], duration: 2, velocity: 0.5, synthType: "Saw" },
     
@@ -77,7 +71,6 @@ const pokemonLeafGreen: TuneData = {
     { time: 12, note: ["A4", "C5", "E5"], duration: 2, velocity: 0.5, synthType: "Saw" },
     { time: 14, note: ["D5", "F5", "A5"], duration: 2, velocity: 0.5, synthType: "Saw" },
     
-    // Percussion - kick and hat
     { time: 0, note: "KICK", duration: 0.25, velocity: 0.8 },
     { time: 1, note: "KICK", duration: 0.25, velocity: 0.8 },
     { time: 2, note: "KICK", duration: 0.25, velocity: 0.8 },
@@ -118,8 +111,6 @@ const pokemonLeafGreen: TuneData = {
     { time: 14.5, note: "HAT", duration: 0.25, velocity: 0.6 },
     { time: 15.5, note: "HAT", duration: 0.25, velocity: 0.6 },
     
-    // Second 16 bars - continuation of the pattern
-    // Repeat melody with slight variation
     { time: 16, note: "E5", duration: 0.5, velocity: 0.9, synthType: "Piano" },
     { time: 16.5, note: "G5", duration: 0.5, velocity: 0.9, synthType: "Piano" },
     { time: 17, note: "A5", duration: 0.5, velocity: 0.9, synthType: "Piano" },
@@ -137,7 +128,6 @@ const pokemonLeafGreen: TuneData = {
     { time: 22.5, note: "G5", duration: 0.5, velocity: 0.9, synthType: "Piano" },
     { time: 23, note: "E5", duration: 1, velocity: 0.9, synthType: "Piano" },
     
-    // Second part of melody with different instrument
     { time: 24, note: "G5", duration: 0.5, velocity: 0.9, synthType: "Sine" },
     { time: 24.5, note: "B5", duration: 0.5, velocity: 0.9, synthType: "Sine" },
     { time: 25, note: "C6", duration: 0.5, velocity: 0.9, synthType: "Sine" },
@@ -154,7 +144,6 @@ const pokemonLeafGreen: TuneData = {
     { time: 30.5, note: "C6", duration: 0.5, velocity: 0.9, synthType: "Triangle" },
     { time: 31, note: "A5", duration: 1, velocity: 0.9, synthType: "Triangle" },
     
-    // Continue bass line
     { time: 16, note: "E3", duration: 1, velocity: 0.7, synthType: "Square" },
     { time: 17, note: "B3", duration: 1, velocity: 0.7, synthType: "Square" },
     { time: 18, note: "A3", duration: 1, velocity: 0.7, synthType: "Square" },
@@ -175,7 +164,6 @@ const pokemonLeafGreen: TuneData = {
     { time: 30, note: "D4", duration: 1, velocity: 0.7, synthType: "Square" },
     { time: 31, note: "A3", duration: 1, velocity: 0.7, synthType: "Square" },
     
-    // Continue percussion
     { time: 16, note: "KICK", duration: 0.25, velocity: 0.8 },
     { time: 17, note: "KICK", duration: 0.25, velocity: 0.8 },
     { time: 18, note: "KICK", duration: 0.25, velocity: 0.8 },

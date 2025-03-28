@@ -1,22 +1,21 @@
-// tunes/types.ts
 import type { Note } from "../app/types"
 
-export type NotePitch = string // e.g., "C4", "Ab5", "Gb2" or percussion like "KICK"
+export type NotePitch = string 
 
 export interface NoteEvent {
-  time: number // Absolute time in beats from the start
-  note: NotePitch | NotePitch[] // Single note or chord
-  duration: number // Duration in beats
-  velocity?: number // Optional velocity parameter (0 to 1)
-  synthType?: SynthType // Optional per-note synthesizer type
+  time: number 
+  note: NotePitch | NotePitch[] 
+  duration: number 
+  velocity?: number 
+  synthType?: SynthType 
 }
 
 export interface MidiNote {
-  name: string // Note name (e.g., "C5")
-  midi: number // MIDI note number
-  time: number // Start time in beats
-  velocity: number // Velocity (0 to 1)
-  duration: number // Duration in beats
+  name: string 
+  midi: number 
+  time: number 
+  velocity: number 
+  duration: number 
 }
 
 export interface MidiTrack {
@@ -61,7 +60,7 @@ export type Mode = "Live" | "Dark" | "Light"
 
 export interface GridCellState {
   active: boolean
-  isStart: boolean // Is this cell the start of a note?
+  isStart: boolean 
 }
 
 export interface TuneData {
@@ -69,15 +68,14 @@ export interface TuneData {
   bpm: number
   synthType: SynthType
   pattern: NoteEvent[]
-  totalBeats: number // Total length of the piece in beats
-  midiData?: MidiData // Original MIDI data if available
+  totalBeats: number 
+  midiData?: MidiData 
 }
 
-// Define the grid structure for UI display
 export interface GridDisplayCell {
   state: GridCellState
   note: NotePitch
-  beat: number // The beat number this cell represents (1-indexed)
+  beat: number 
 }
 
 export interface SavedTune {
@@ -89,7 +87,6 @@ export interface SavedTune {
   midiData?: MidiData
 }
 
-// For backward compatibility with older code
 export interface TunePattern {
   name: string
   bpm: number
