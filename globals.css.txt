@@ -1,0 +1,825 @@
+/* Pixelated styles and neon effects */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-rgb: 0, 0, 0;
+
+  /* Neon color palette */
+  --neon-blue: #00f3ff;
+  --neon-pink: #ff2a6d;
+  --neon-green: #05ffa1;
+  --neon-purple: #b967ff;
+  --neon-yellow: #fffb96;
+
+  --font-geist-mono: "Geist Mono";
+  --font-pixelify: "Pixelify Sans";
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  font-family: var(--font-geist-mono), monospace;
+  image-rendering: pixelated;
+}
+
+.font-geist-mono {
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.font-pixelify {
+  font-family: var(--font-pixelify), system-ui, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --background: 0 0% 0%; /* Changed to 0% for true black */
+    --foreground: 0 0% 98%;
+    --card: 0 0% 0%; /* Changed to 0% for true black */
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 0%; /* Changed to 0% for true black */
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 0 0% 0%; /* Changed to 0% for true black */
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Pixelated styles */
+.pixelated-ui * {
+  image-rendering: pixelated;
+  font-smooth: never;
+  -webkit-font-smoothing: none;
+}
+
+/* Neon text effects */
+.neon-text-blue {
+  color: var(--neon-blue);
+  text-shadow: 0 0 5px var(--neon-blue), 0 0 10px var(--neon-blue);
+}
+
+.neon-text-pink {
+  color: var(--neon-pink);
+  text-shadow: 0 0 5px var(--neon-pink), 0 0 10px var(--neon-pink);
+}
+
+.neon-text-green {
+  color: var(--neon-green);
+  text-shadow: 0 0 5px var(--neon-green), 0 0 10px var(--neon-green);
+}
+
+.neon-text-purple {
+  color: var(--neon-purple);
+  text-shadow: 0 0 5px var(--neon-purple), 0 0 10px var(--neon-purple);
+}
+
+.neon-text-yellow {
+  color: var(--neon-yellow);
+  text-shadow: 0 0 5px var(--neon-yellow), 0 0 10px var(--neon-yellow);
+}
+
+/* Neon borders */
+.neon-border-blue {
+  border: 1px solid var(--neon-blue);
+  box-shadow: 0 0 5px var(--neon-blue), inset 0 0 5px var(--neon-blue);
+}
+
+.neon-border-pink {
+  border: 1px solid var(--neon-pink);
+  box-shadow: 0 0 5px var(--neon-pink), inset 0 0 5px var(--neon-pink);
+}
+
+.neon-border-green {
+  border: 1px solid var(--neon-green);
+  box-shadow: 0 0 5px var(--neon-green), inset 0 0 5px var(--neon-green);
+}
+
+.neon-border-purple {
+  border: 1px solid var(--neon-purple);
+  box-shadow: 0 0 5px var(--neon-purple), inset 0 0 5px var(--neon-purple);
+}
+
+/* Retro UI elements */
+.retro-panel {
+  background-color: rgba(0, 0, 0, 0.7);
+  border: 1px solid #333;
+  padding: 8px;
+  position: relative;
+}
+
+.retro-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+}
+
+/* Custom range input styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  background: #111;
+  outline: none;
+  border: 1px solid var(--neon-green);
+  box-shadow: 0 0 3px var(--neon-green);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 8px;
+  height: 16px;
+  background: var(--neon-green);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 5px var(--neon-green);
+}
+
+/* Grid styling */
+.retro-grid {
+  background-image: linear-gradient(rgba(50, 50, 50, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(50, 50, 50, 0.3) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Digital display */
+.digital-display {
+  font-family: var(--font-pixelify), monospace;
+  background-color: rgba(0, 0, 0, 0.8);
+  border: 1px solid #333;
+  padding: 4px 8px;
+  letter-spacing: 1px;
+}
+
+/* Scanline effect */
+.scanlines {
+  position: relative;
+  overflow: hidden;
+}
+
+.scanlines::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.1) 50%);
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0.3;
+}
+
+/* Add these styles to the end of the file for better crank visualization */
+
+/* Crank rotation indicator */
+.crank-indicator {
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  top: 0;
+  left: 0;
+}
+
+.crank-tick {
+  position: absolute;
+  width: 1px;
+  height: 3px;
+  background-color: var(--neon-purple);
+  transform-origin: center bottom;
+}
+
+/* Slow-motion indicator */
+.slow-motion-zone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 33%;
+  border-top: 1px solid var(--neon-green);
+  border-left: 1px solid var(--neon-green);
+  border-right: 1px solid var(--neon-green);
+  opacity: 0.5;
+}
+
+/* Sub-beat position indicator */
+.sub-beat-indicator {
+  width: 100%;
+  height: 4px;
+  background: #111;
+  position: relative;
+  margin-top: 4px;
+  border: 1px solid var(--neon-green);
+}
+
+.sub-beat-position {
+  height: 100%;
+  background-color: var(--neon-green);
+  transition: width 0.05s linear;
+}
+
+/* Add these styles to the end of the file for the settings panel overlay */
+
+/* Settings panel overlay */
+.settings-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  z-index: 50;
+  transform: translateX(0);
+  transition: transform 0.3s ease-in-out;
+}
+
+.settings-overlay.hidden {
+  transform: translateX(100%);
+}
+
+/* Add a semi-transparent backdrop when settings are open */
+.settings-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 40;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+  pointer-events: none;
+}
+
+.settings-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Enhance the close button */
+.settings-close {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--neon-blue);
+  box-shadow: 0 0 5px var(--neon-blue);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-close:hover {
+  background-color: rgba(0, 243, 255, 0.2);
+}
+
+.settings-close span {
+  font-size: 18px;
+  color: var(--neon-blue);
+  text-shadow: 0 0 5px var(--neon-blue);
+}
+
+/* Add this CSS class for the keyboard flash effect */
+/* Add this at the end of the file: */
+
+/* Optimize animations for better performance on low-power devices */
+
+/* Reduce animation complexity */
+@keyframes key-flash {
+  0% {
+    background-color: rgba(128, 0, 128, 0);
+  }
+  50% {
+    background-color: rgba(128, 0, 128, 0.15);
+  }
+  100% {
+    background-color: rgba(128, 0, 128, 0);
+  }
+}
+
+.key-press-flash {
+  animation: key-flash 0.1s ease-in-out;
+}
+
+/* Simplify crank glow animation */
+@keyframes crank-glow {
+  0% {
+    box-shadow: 0 0 3px rgba(255, 0, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(255, 0, 255, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 3px rgba(255, 0, 255, 0.4);
+  }
+}
+
+.crank-active {
+  animation: crank-glow 0.6s infinite;
+}
+
+/* Add a class for low-power devices to further reduce visual effects */
+.low-power-mode .neon-border-blue,
+.low-power-mode .neon-border-pink,
+.low-power-mode .neon-border-green,
+.low-power-mode .neon-border-purple {
+  box-shadow: none;
+}
+
+.low-power-mode .neon-text-blue,
+.low-power-mode .neon-text-pink,
+.low-power-mode .neon-text-green,
+.low-power-mode .neon-text-purple,
+.low-power-mode .neon-text-yellow {
+  text-shadow: none;
+}
+
+/* Optimize scanlines effect for better performance */
+.low-power-mode .scanlines::before {
+  display: none;
+}
+
+/* Simplify animations for low-power devices */
+.low-power-mode .animate-pulse {
+  animation: none;
+}
+
+.low-power-mode .animate-bounce {
+  animation: none;
+}
+
+/* Wind-up mechanism styles */
+.momentum-bar {
+  height: 4px;
+  background: #111;
+  border: 1px solid var(--neon-purple);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.momentum-fill {
+  height: 100%;
+  background: var(--neon-purple);
+  transition: width 0.1s ease-out;
+}
+
+/* Winding animation */
+@keyframes winding {
+  0% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(5deg);
+  }
+  50% {
+    transform: rotate(0deg);
+  }
+  75% {
+    transform: rotate(-5deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.winding-up {
+  animation: winding 0.3s infinite;
+}
+
+/* Add light mode styles after the dark mode styles */
+
+/* Light mode styles */
+.light-mode {
+  color: black;
+  background-color: white;
+}
+
+.light-mode .retro-panel {
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ccc;
+}
+
+.light-mode .retro-grid {
+  background-image: linear-gradient(rgba(200, 200, 200, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 200, 200, 0.3) 1px, transparent 1px);
+}
+
+.light-mode .digital-display {
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ccc;
+}
+
+/* Adjust neon effects for light mode */
+.light-mode .neon-text-blue {
+  color: #0077ff;
+  text-shadow: none;
+}
+
+.light-mode .neon-text-pink {
+  color: #ff0066;
+  text-shadow: none;
+}
+
+.light-mode .neon-text-green {
+  color: #00aa44;
+  text-shadow: none;
+}
+
+.light-mode .neon-text-purple {
+  color: #8800ff;
+  text-shadow: none;
+}
+
+.light-mode .neon-text-yellow {
+  color: #ccaa00;
+  text-shadow: none;
+}
+
+/* Adjust neon borders for light mode */
+.light-mode .neon-border-blue {
+  border: 1px solid #0077ff;
+  box-shadow: none;
+}
+
+.light-mode .neon-border-pink {
+  border: 1px solid #ff0066;
+  box-shadow: none;
+}
+
+.light-mode .neon-border-green {
+  border: 1px solid #00aa44;
+  box-shadow: none;
+}
+
+.light-mode .neon-border-purple {
+  border: 1px solid #8800ff;
+  box-shadow: none;
+}
+
+/* Adjust grid cells for light mode */
+.light-mode input[type="range"] {
+  background: #eee;
+  border: 1px solid #00aa44;
+  box-shadow: none;
+}
+
+.light-mode input[type="range"]::-webkit-slider-thumb {
+  background: #00aa44;
+  box-shadow: none;
+}
+
+/* Adjust settings panel for light mode */
+.light-mode .settings-overlay {
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: -4px 0 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Rename dark-mode class for consistency */
+.dark-mode {
+  color: white;
+  background-color: #000; /* Ensure true black */
+}
+
+/* Ensure the background is black in dark mode */
+body.dark-mode {
+  background-color: #000;
+}
+
+/* Ensure the retro-grid has a black background in dark mode */
+.dark-mode .retro-grid {
+  background-color: #000;
+}
+
+/* Adjust scanlines for light mode */
+.light-mode .scanlines::before {
+  background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.05) 50%);
+}
+
+/* Adjust momentum bar for light mode */
+.light-mode .momentum-bar {
+  background: #eee;
+  border: 1px solid #8800ff;
+}
+
+.light-mode .momentum-fill {
+  background: #8800ff;
+}
+
+/* Adjust key press flash for light mode */
+@keyframes key-flash-light {
+  0% {
+    background-color: rgba(136, 0, 255, 0);
+  }
+  50% {
+    background-color: rgba(136, 0, 255, 0.1);
+  }
+  100% {
+    background-color: rgba(136, 0, 255, 0);
+  }
+}
+
+.light-mode .key-press-flash {
+  animation: key-flash-light 0.1s ease-in-out;
+}
+
+/* Remove black backgrounds in light mode */
+.light-mode button,
+.light-mode .digital-display,
+.light-mode .retro-panel,
+.light-mode input[type="range"],
+.light-mode .momentum-bar,
+.light-mode .settings-overlay,
+.light-mode .settings-backdrop {
+  background-color: transparent !important;
+}
+
+.light-mode .settings-panel button {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Completely remove all black backgrounds in light mode */
+.light-mode .bg-black,
+.light-mode [class*="bg-black"],
+.light-mode [style*="background-color: black"],
+.light-mode [style*="background-color: #000"],
+.light-mode [style*="background-color: rgb(0, 0, 0)"],
+.light-mode [style*="background-color: rgba(0, 0, 0"],
+.light-mode .crank-indicator div,
+.light-mode .sub-beat-position,
+.light-mode .momentum-fill {
+  background-color: transparent !important;
+}
+
+/* Make sure the crank and other elements are visible in light mode */
+.light-mode .crank-indicator div {
+  background-color: rgba(136, 0, 255, 0.5) !important;
+}
+
+.light-mode .sub-beat-position {
+  background-color: rgba(0, 170, 68, 0.5) !important;
+}
+
+.light-mode .momentum-fill {
+  background-color: rgba(136, 0, 255, 0.5) !important;
+}
+
+/* Ensure the rotation handle is visible in light mode */
+.light-mode motion.div {
+  background-color: rgba(136, 0, 255, 0.7) !important;
+}
+
+/* Ensure the portrait mode overlay has a light background */
+.light-mode .bg-black.bg-opacity-80 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Force black background in dark mode */
+html.dark body,
+html.dark .bg-background,
+html.dark [class*="bg-background"],
+html.dark .dark-mode {
+  background-color: #000 !important;
+}
+
+/* Force black background for all elements that might inherit a different color */
+html.dark div,
+html.dark main,
+html.dark section,
+html.dark article,
+html.dark aside,
+html.dark header,
+html.dark footer,
+html.dark nav {
+  background-color: inherit;
+}
+
+/* Ensure the app container has a black background */
+html.dark #__next,
+html.dark main {
+  background-color: #000;
+}
+
+/* Ensure all dark mode backgrounds are true black */
+html.dark body,
+html.dark .bg-background,
+html.dark [class*="bg-background"],
+html.dark .dark-mode,
+html.dark .retro-panel,
+html.dark .digital-display,
+html.dark .retro-grid,
+html.dark .settings-overlay,
+html.dark input[type="range"],
+html.dark select,
+html.dark button {
+  background-color: #000 !important;
+}
+
+html.dark .bg-gray-900 {
+  background-color: #000 !important;
+}
+
+html.dark .text-gray-600 {
+  color: #aaa !important;
+}
+
+/* Force black background for all elements in dark mode */
+.dark-mode .retro-panel,
+.dark-mode .digital-display,
+.dark-mode button,
+.dark-mode select,
+.dark-mode input[type="range"] {
+  background-color: #000 !important;
+}
+
+/* Force ALL dark mode backgrounds to be true black */
+.dark-mode,
+.dark-mode *,
+html.dark,
+html.dark *,
+body.dark-mode,
+.dark-mode .retro-panel,
+.dark-mode .digital-display,
+.dark-mode .retro-grid,
+.dark-mode .bg-gray-900,
+.dark-mode [class*="bg-gray"],
+.dark-mode button,
+.dark-mode select,
+.dark-mode input,
+.dark-mode .settings-overlay,
+.dark-mode div,
+.dark-mode main,
+.dark-mode section {
+  background-color: #000 !important;
+}
+
+/* Make sure note dots are visible */
+.dark-mode .w-1\.5.h-1\.5.bg-white,
+.dark-mode .w-1\.5.h-1\.5.bg-gray-500 {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+/* Ensure grid cells have black background */
+.dark-mode .grid-cols-9 > div {
+  background-color: #000 !important;
+}
+
+/* Force black background for the main container */
+.dark-mode .retro-grid,
+html.dark .retro-grid {
+  background-color: #000 !important;
+  background-image: linear-gradient(rgba(50, 50, 50, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(50, 50, 50, 0.3) 1px, transparent 1px);
+}
+
+/* Ensure note dots are always visible */
+.w-1\.5.h-1\.5.bg-white,
+.w-1\.5.h-1\.5.bg-gray-500,
+.w-2.h-2.bg-white,
+.w-2.h-2.bg-gray-400 {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+/* Make note dots larger and more visible */
+.grid-cols-9 > div > div {
+  min-width: 6px !important;
+  min-height: 6px !important;
+  border-radius: 0 !important;
+}
+
+/* Force all grid cells to have proper background */
+.grid-cols-9 > div {
+  background-color: #000 !important;
+}
+
+/* Ensure the current beat highlight works properly */
+.bg-gray-900.dark\:bg-gray-900 {
+  background-color: #222 !important;
+}
+
+/* Make sure the grid is visible */
+.retro-grid {
+  background-image: linear-gradient(rgba(50, 50, 50, 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(50, 50, 50, 0.5) 1px, transparent 1px) !important;
+}
+
+/* Add custom scrollbar styling */
+.dark-mode ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark-mode ::-webkit-scrollbar-track {
+  background: #000;
+  border: 1px solid #333;
+}
+
+.dark-mode ::-webkit-scrollbar-thumb {
+  background: var(--neon-purple);
+  border-radius: 0;
+}
+
+.light-mode ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.light-mode ::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+}
+
+.light-mode ::-webkit-scrollbar-thumb {
+  background: #6600cc;
+  border-radius: 0;
+}
+
+/* Ensure the grid container doesn't overflow the main container */
+.retro-panel {
+  display: flex;
+  flex-direction: column;
+}
+
