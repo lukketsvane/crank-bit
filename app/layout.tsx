@@ -23,6 +23,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "crank-io",
   description: "Control audio playback with keyboard input",
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -40,3 +41,6 @@ export default function RootLayout({
   )
 }
 
+
+
+import './globals.css'

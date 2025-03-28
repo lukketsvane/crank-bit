@@ -270,73 +270,291 @@ export default function Home() {
       const ctx = audioContextRef.current
       const now = ctx.currentTime
       const stopTime = now + (duration * 60) / bpm
+      const sources: { osc: OscillatorNode; gain: GainNode; source?: AudioBufferSourceNode }[] = []
 
-      if (["KICK", "SNARE", "HAT", "RIDE"].includes(note)) {
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
+      // Create a master gain for this note
+      const masterGain = ctx.createGain()
+      masterGain.connect(ctx.destination)
 
-        if (note === "KICK") {
-          osc.type = "sine"
-          osc.frequency.setValueAtTime(120, now)
-          osc.frequency.exponentialRampToValueAtTime(50, now + 0.1)
-          gain.gain.setValueAtTime(0.8 * velocity, now)
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3)
-        } else if (note === "SNARE") {
-          osc.type = "triangle"
-          osc.frequency.value = 200
-          gain.gain.setValueAtTime(0.5 * velocity, now)
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2)
-        } else {
-          osc.type = "square"
-          osc.frequency.value = note === "HAT" ? 800 : 600
-          gain.gain.setValueAtTime(0.3 * velocity, now)
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
+      // Add a subtle reverb effect
+      const convolver = ctx.createConvolver()
+      try {
+        // Create a simple impulse response for reverb
+        const impulseLength = 0.5 // 500ms reverb
+        const sampleRate = ctx.sampleRate
+        const impulse = ctx.createBuffer(2, sampleRate * impulseLength, sampleRate)
+
+        for (let channel = 0; channel < 2; channel++) {
+          const impulseData = impulse.getChannelData(channel)
+          for (let i = 0; i < impulseData.length; i++) {
+            // Exponential decay
+            impulseData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / impulseData.length, 2)
+          }
         }
 
-        osc.connect(gain)
-        gain.connect(ctx.destination)
-        osc.start(now)
-        osc.stop(now + 0.5)
+        convolver.buffer = impulse
+        const reverbGain = ctx.createGain()
+        reverbGain.gain.value = 0.1 // Subtle reverb
+        masterGain.connect(reverbGain)
+        reverbGain.connect(convolver)
+        convolver.connect(ctx.destination)
+      } catch (e) {
+        console.warn("Couldn't create reverb", e)
+      }
+
+      // Handle percussion sounds with improved quality
+      if (["KICK", "SNARE", "HAT", "RIDE"].includes(note)) {
+        if (note === "KICK") {
+          // Improved kick drum with body and click
+          const clickOsc = ctx.createOscillator()
+          const clickGain = ctx.createGain()
+          clickOsc.type = "sine"
+          clickOsc.frequency.setValueAtTime(160, now)
+          clickOsc.frequency.exponentialRampToValueAtTime(50, now + 0.03)
+          clickGain.gain.setValueAtTime(0.9 * velocity, now)
+          clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
+          clickOsc.connect(clickGain)
+          clickGain.connect(masterGain)
+          clickOsc.start(now)
+          clickOsc.stop(now + 0.1)
+          sources.push({ osc: clickOsc, gain: clickGain })
+
+          // Body of the kick
+          const bodyOsc = ctx.createOscillator()
+          const bodyGain = ctx.createGain()
+          bodyOsc.type = "sine"
+          bodyOsc.frequency.setValueAtTime(60, now)
+          bodyOsc.frequency.exponentialRampToValueAtTime(40, now + 0.2)
+          bodyGain.gain.setValueAtTime(0.8 * velocity, now)
+          bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4)
+          bodyOsc.connect(bodyGain)
+          bodyGain.connect(masterGain)
+          bodyOsc.start(now)
+          bodyOsc.stop(now + 0.4)
+          sources.push({ osc: bodyOsc, gain: bodyGain })
+        } else if (note === "SNARE") {
+          // Improved snare with noise and tone
+          const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate)
+          const noiseData = noiseBuffer.getChannelData(0)
+          for (let i = 0; i < noiseData.length; i++) {
+            noiseData[i] = Math.random() * 2 - 1
+          }
+
+          const noiseSource = ctx.createBufferSource()
+          const noiseGain = ctx.createGain()
+          noiseSource.buffer = noiseBuffer
+          noiseGain.gain.setValueAtTime(0.4 * velocity, now)
+          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2)
+          noiseSource.connect(noiseGain)
+          noiseGain.connect(masterGain)
+          noiseSource.start(now)
+          sources.push({ gain: noiseGain, osc: ctx.createOscillator(), source: noiseSource })
+
+          // Tone component
+          const toneOsc = ctx.createOscillator()
+          const toneGain = ctx.createGain()
+          toneOsc.type = "triangle"
+          toneOsc.frequency.value = 180
+          toneGain.gain.setValueAtTime(0.5 * velocity, now)
+          toneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
+          toneOsc.connect(toneGain)
+          toneGain.connect(masterGain)
+          toneOsc.start(now)
+          toneOsc.stop(now + 0.1)
+          sources.push({ osc: toneOsc, gain: toneGain })
+        } else {
+          // Improved hi-hat and ride with filtered noise
+          const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate)
+          const noiseData = noiseBuffer.getChannelData(0)
+          for (let i = 0; i < noiseData.length; i++) {
+            noiseData[i] = Math.random() * 2 - 1
+          }
+
+          const noiseSource = ctx.createBufferSource()
+          const noiseGain = ctx.createGain()
+          const filter = ctx.createBiquadFilter()
+
+          filter.type = "highpass"
+          filter.frequency.value = note === "HAT" ? 8000 : 6000
+          filter.Q.value = 1.5
+
+          noiseSource.buffer = noiseBuffer
+          noiseGain.gain.setValueAtTime(0.3 * velocity, now)
+          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + (note === "HAT" ? 0.1 : 0.3))
+
+          noiseSource.connect(filter)
+          filter.connect(noiseGain)
+          noiseGain.connect(masterGain)
+          noiseSource.start(now)
+          sources.push({ gain: noiseGain, osc: ctx.createOscillator(), source: noiseSource })
+
+          if (note === "RIDE") {
+            // Add a metallic tone for the ride
+            const toneOsc = ctx.createOscillator()
+            const toneGain = ctx.createGain()
+            toneOsc.type = "triangle"
+            toneOsc.frequency.value = 1000
+            toneGain.gain.setValueAtTime(0.1 * velocity, now)
+            toneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3)
+            toneOsc.connect(toneGain)
+            toneGain.connect(masterGain)
+            toneOsc.start(now)
+            toneOsc.stop(now + 0.3)
+            sources.push({ osc: toneOsc, gain: toneGain })
+          }
+        }
+
+        const sourceId = `${note}-${now}`
+        activeSourcesRef.current[sourceId] = sources
         return
       }
 
+      // Handle melodic notes with improved quality
       const freq = getFrequency(note, transpose)
       if (!freq) return
 
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
+      // Create different timbres based on the selected synth type
+      if (synthType === "Piano") {
+        // Piano-like sound with multiple harmonics
+        const fundamentalOsc = ctx.createOscillator()
+        const fundamentalGain = ctx.createGain()
+        fundamentalOsc.type = "triangle"
+        fundamentalOsc.frequency.value = freq
 
-      if (synthType === "Piano") osc.type = "triangle"
-      else if (synthType === "Music Box") osc.type = "sine"
-      else osc.type = synthType.toLowerCase() as OscillatorType
+        // Piano-like ADSR envelope
+        fundamentalGain.gain.setValueAtTime(0, now)
+        fundamentalGain.gain.linearRampToValueAtTime(0.5 * velocity, now + 0.005) // Fast attack
+        fundamentalGain.gain.exponentialRampToValueAtTime(0.3 * velocity, now + 0.1) // Quick decay
+        fundamentalGain.gain.setTargetAtTime(0.2 * velocity, now + 0.1, 0.8) // Sustain
+        fundamentalGain.gain.setTargetAtTime(0, stopTime - 0.1, 0.2) // Release
 
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0, now)
-      gain.gain.linearRampToValueAtTime(0.4 * velocity, now + 0.01)
-      gain.gain.setTargetAtTime(0, now + 0.1, 0.3)
+        fundamentalOsc.connect(fundamentalGain)
+        fundamentalGain.connect(masterGain)
+        fundamentalOsc.start(now)
+        fundamentalOsc.stop(stopTime + 0.2) // Add a bit of release time
+        sources.push({ osc: fundamentalOsc, gain: fundamentalGain })
 
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start(now)
-      osc.stop(stopTime)
+        // Add harmonics for richness
+        const harmonics = [2, 3, 4, 5]
+        const harmonicGains = [0.25, 0.15, 0.1, 0.05] // Decreasing gain for higher harmonics
+
+        harmonics.forEach((harmonic, i) => {
+          const harmonicOsc = ctx.createOscillator()
+          const harmonicGain = ctx.createGain()
+          harmonicOsc.type = "sine"
+          harmonicOsc.frequency.value = freq * harmonic
+
+          harmonicGain.gain.setValueAtTime(0, now)
+          harmonicGain.gain.linearRampToValueAtTime(harmonicGains[i] * velocity, now + 0.005)
+          harmonicGain.gain.exponentialRampToValueAtTime(harmonicGains[i] * 0.5 * velocity, now + 0.1)
+          harmonicGain.gain.setTargetAtTime(0, stopTime - 0.1, 0.2)
+
+          harmonicOsc.connect(harmonicGain)
+          harmonicGain.connect(masterGain)
+          harmonicOsc.start(now)
+          harmonicOsc.stop(stopTime + 0.2)
+          sources.push({ osc: harmonicOsc, gain: harmonicGain })
+        })
+      } else if (synthType === "Music Box") {
+        // Music box with bright, bell-like tone
+        const mainOsc = ctx.createOscillator()
+        const mainGain = ctx.createGain()
+        mainOsc.type = "sine"
+        mainOsc.frequency.value = freq
+
+        // Bell-like envelope with quick attack and long decay
+        mainGain.gain.setValueAtTime(0, now)
+        mainGain.gain.linearRampToValueAtTime(0.7 * velocity, now + 0.002) // Very fast attack
+        mainGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 2) // Long decay
+
+        mainOsc.connect(mainGain)
+        mainGain.connect(masterGain)
+        mainOsc.start(now)
+        mainOsc.stop(now + duration * 2)
+        sources.push({ osc: mainOsc, gain: mainGain })
+
+        // Add high harmonics for the characteristic music box sound
+        const harmonics = [3, 4, 7, 10]
+        const harmonicGains = [0.3, 0.2, 0.1, 0.05]
+
+        harmonics.forEach((harmonic, i) => {
+          const harmonicOsc = ctx.createOscillator()
+          const harmonicGain = ctx.createGain()
+          harmonicOsc.type = "sine"
+          harmonicOsc.frequency.value = freq * harmonic
+
+          harmonicGain.gain.setValueAtTime(0, now)
+          harmonicGain.gain.linearRampToValueAtTime(harmonicGains[i] * velocity, now + 0.002)
+          harmonicGain.gain.exponentialRampToValueAtTime(0.001, now + duration * (1.5 - i * 0.2)) // Higher harmonics decay faster
+
+          harmonicOsc.connect(harmonicGain)
+          harmonicGain.connect(masterGain)
+          harmonicOsc.start(now)
+          harmonicOsc.stop(now + duration * 2)
+          sources.push({ osc: harmonicOsc, gain: harmonicGain })
+        })
+      } else {
+        // Improved synthesizer sounds (Sine, Square, Saw, Triangle)
+        const mainOsc = ctx.createOscillator()
+        const mainGain = ctx.createGain()
+
+        mainOsc.type = synthType.toLowerCase() as OscillatorType
+        mainOsc.frequency.value = freq
+
+        // Synth-like ADSR envelope
+        mainGain.gain.setValueAtTime(0, now)
+        mainGain.gain.linearRampToValueAtTime(0.6 * velocity, now + 0.01) // Attack
+        mainGain.gain.exponentialRampToValueAtTime(0.4 * velocity, now + 0.1) // Decay
+        mainGain.gain.setTargetAtTime(0.3 * velocity, now + 0.1, 0.3) // Sustain
+        mainGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.1) // Release
+
+        mainOsc.connect(mainGain)
+        mainGain.connect(masterGain)
+        mainOsc.start(now)
+        mainOsc.stop(stopTime + 0.1)
+        sources.push({ osc: mainOsc, gain: mainGain })
+
+        // Add a sub-oscillator for bass notes (for frequencies below 220Hz)
+        if (freq < 220) {
+          const subOsc = ctx.createOscillator()
+          const subGain = ctx.createGain()
+          subOsc.type = "sine"
+          subOsc.frequency.value = freq / 2 // One octave lower
+
+          subGain.gain.setValueAtTime(0, now)
+          subGain.gain.linearRampToValueAtTime(0.3 * velocity, now + 0.01)
+          subGain.gain.exponentialRampToValueAtTime(0.2 * velocity, now + 0.1)
+          subGain.gain.setTargetAtTime(0.15 * velocity, now + 0.1, 0.3)
+          subGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.1)
+
+          subOsc.connect(subGain)
+          subGain.connect(masterGain)
+          subOsc.start(now)
+          subOsc.stop(stopTime + 0.1)
+          sources.push({ osc: subOsc, gain: subGain })
+        }
+
+        // Add a subtle detuned oscillator for richness
+        const detuneOsc = ctx.createOscillator()
+        const detuneGain = ctx.createGain()
+        detuneOsc.type = mainOsc.type
+        detuneOsc.frequency.value = freq * 1.003 // Slightly detuned
+
+        detuneGain.gain.setValueAtTime(0, now)
+        detuneGain.gain.linearRampToValueAtTime(0.1 * velocity, now + 0.01)
+        detuneGain.gain.exponentialRampToValueAtTime(0.07 * velocity, now + 0.1)
+        detuneGain.gain.setTargetAtTime(0.05 * velocity, now + 0.1, 0.3)
+        detuneGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.1)
+
+        detuneOsc.connect(detuneGain)
+        detuneGain.connect(masterGain)
+        detuneOsc.start(now)
+        detuneOsc.stop(stopTime + 0.1)
+        sources.push({ osc: detuneOsc, gain: detuneGain })
+      }
 
       const sourceId = `${note}-${now}`
-      activeSourcesRef.current[sourceId] = [{ osc, gain }]
-
-      if (synthType === "Piano") {
-        const harmonicOsc = ctx.createOscillator()
-        const harmonicGain = ctx.createGain()
-        harmonicOsc.type = "sine"
-        harmonicOsc.frequency.value = freq * 2
-        harmonicGain.gain.setValueAtTime(0, now)
-        harmonicGain.gain.linearRampToValueAtTime(0.15 * velocity, now + 0.01)
-        harmonicGain.gain.setTargetAtTime(0, now + 0.1, 0.3)
-        harmonicOsc.connect(harmonicGain)
-        harmonicGain.connect(ctx.destination)
-        harmonicOsc.start(now)
-        harmonicOsc.stop(stopTime)
-        activeSourcesRef.current[sourceId].push({ osc: harmonicOsc, gain: harmonicGain })
-      }
+      activeSourcesRef.current[sourceId] = sources
     },
     [bpm, synthType, transpose, initAudio],
   )
@@ -442,14 +660,33 @@ export default function Home() {
           if (currentPage !== patternPage) setPatternPage(currentPage)
         } else {
           // Move backward by a smaller increment
-          advanceTime(-0.05)
+          const prevTime = currentTimeRef.current
+          const newTime = Math.max(0, prevTime - 0.125)
+
+          setCurrentTime(newTime)
+          currentTimeRef.current = newTime
+
+          // Find and play notes in reverse
+          const notesToPlay = currentTune.pattern.filter((event) => event.time <= prevTime && event.time > newTime)
+
+          // Play notes in reverse order
+          for (const event of notesToPlay.reverse()) {
+            const noteArray = Array.isArray(event.note) ? event.note : [event.note]
+            if (noteArray.length > 0) {
+              playNoteInternal(noteArray[0], event.duration, event.velocity || 1)
+            }
+          }
+
           setMomentum(Math.max(momentumRef.current - 10, 0))
+
+          const currentPage = Math.floor(Math.floor(newTime) / visibleBeats)
+          if (currentPage !== patternPage) setPatternPage(currentPage)
         }
         setLastCrankAngle(angle)
         setTimeout(() => setIsHandlingCrankEvent(false), 16)
       }
     },
-    [lastCrankAngle, advanceTime, currentTune.totalBeats, visibleBeats, patternPage, playNoteInternal],
+    [lastCrankAngle, currentTune.totalBeats, visibleBeats, patternPage, playNoteInternal],
   )
 
   useEffect(() => {
@@ -538,10 +775,33 @@ export default function Home() {
         const currentPage = Math.floor(Math.floor(adjustedTime) / visibleBeats)
         if (currentPage !== patternPage) setPatternPage(currentPage)
       } else if (e.key === "ArrowLeft") {
-        const newMomentum = Math.max(momentumRef.current - 15, 0)
-        setMomentum(newMomentum)
-        if (newMomentum === 0) setIsWindingUp(false)
-        advanceTime(-0.05) // Move backward by a small increment
+        const now = Date.now()
+        setLastCrankTime(now)
+
+        setCrankRotation((prev) => prev - 15)
+        setMomentum(20)
+        setAutoPlaySpeed(0.25)
+        setIsWindingUp(true)
+
+        const prevTime = currentTimeRef.current
+        const newTime = Math.max(0, prevTime - 0.125) // Move backward by 1/8th beat
+
+        setCurrentTime(newTime)
+        currentTimeRef.current = newTime
+
+        // Find and play notes in reverse
+        const notesToPlay = currentTune.pattern.filter((event) => event.time <= prevTime && event.time > newTime)
+
+        // Play notes in reverse order
+        for (const event of notesToPlay.reverse()) {
+          const noteArray = Array.isArray(event.note) ? event.note : [event.note]
+          if (noteArray.length > 0) {
+            playNoteInternal(noteArray[0], event.duration, event.velocity || 1)
+          }
+        }
+
+        const currentPage = Math.floor(Math.floor(newTime) / visibleBeats)
+        if (currentPage !== patternPage) setPatternPage(currentPage)
       } else if (e.key === " ") {
         setIsWindingUp(!windingUpRef.current)
       } else if (e.key === "t") {
@@ -890,7 +1150,7 @@ export default function Home() {
                 onTouchMove={handleTouchMove}
               >
                 <div
-                  className={`w-16 h-16 flex items-center justify-center cursor-grab relative neon-border-purple ${isDragging ? "cursor-grabbing" : ""}`}
+                  className={`w-16 h-16 flex items-center justify-center cursor-grab relative ${isDragging ? "cursor-grabbing" : ""}`}
                 >
                   <motion.div
                     className="w-full h-full flex items-center justify-center"
@@ -915,15 +1175,6 @@ export default function Home() {
                         style={{ width: `${subBeatPosition * 100}%` }}
                       ></div>
                     </div>
-                  </div>
-                </div>
-                <div className="mt-2 w-full mb-2">
-                  <div className="text-[8px] font-mono neon-text-purple text-center mb-0.5">MOMENTUM</div>
-                  <div className="w-full h-1.5 bg-black border border-purple-500 relative overflow-hidden">
-                    <div
-                      className="h-full bg-purple-500 opacity-50 transition-width duration-50 ease-linear"
-                      style={{ width: `${momentum}%` }}
-                    ></div>
                   </div>
                 </div>
               </div>
