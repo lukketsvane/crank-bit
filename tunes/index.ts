@@ -1,13 +1,19 @@
 import type { TuneData } from "./types"
 import avril14th from "./avril14th"
+import imConfessin from "./imConfessin"
+import pokemonLeafGreen from "./pokemonLeafGreen"
 
-// Create array with only Avril 14th
-export const tunes: TuneData[] = [avril14th]
+// Include all tunes in the tunes array
+export const tunes: TuneData[] = [
+  avril14th,
+  imConfessin,
+  pokemonLeafGreen,
+  // Add any other tunes here
+]
 
 export function getRandomTune() {
-  // Since we only have one tune, just return it
-  return avril14th
+  // Return a random tune from the array
+  return tunes[Math.floor(Math.random() * tunes.length)]
 }
 
 export default tunes
-

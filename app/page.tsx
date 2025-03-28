@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import Head from "next/head"
-import { Save, FolderOpen } from "lucide-react"
+import { Save, FolderOpen, Pencil, Trash2 } from "lucide-react"
 import type { NotePitch, SynthType, Mode, GridDisplayCell, SavedTune, TuneData } from "../tunes/types"
 import tunes, { getRandomTune } from "../tunes"
 import avril14th from "../tunes/avril14th"
@@ -94,6 +94,8 @@ export default function Home() {
   const [isWindingUp, setIsWindingUp] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStartY, setDragStartY] = useState(0)
+  const [selectedNote, setSelectedNote] = useState<{note: NotePitch, time: number} | null>(null)
+  const [selectedNoteSynth, setSelectedNoteSynth] = useState<SynthType>("Piano")
 
   const momentumRef = useRef(momentum)
   const autoPlaySpeedRef = useRef(autoPlaySpeed)
@@ -242,7 +244,7 @@ export default function Home() {
   }, [initAudio])
 
   const playNoteInternal = useCallback(
-    (note: NotePitch, duration: number, velocity = 1) => {
+    (note: NotePitch, duration: number, velocity = 1, noteSynthType?: SynthType) => {
       if (!audioContextRef.current) {
         initAudio()
         return
@@ -274,134 +276,507 @@ export default function Home() {
 
       // Create a master gain for this note
       const masterGain = ctx.createGain()
-      masterGain.connect(ctx.destination)
-
-      // Add a subtle reverb effect
+      
+      // Create a multiband compressor setup for better dynamics control
+      const lowCompressor = ctx.createDynamicsCompressor()
+      lowCompressor.threshold.value = -24
+      lowCompressor.knee.value = 12     // Smoother knee
+      lowCompressor.ratio.value = 3     // Gentler ratio
+      lowCompressor.attack.value = 0.01 // Slightly slower attack
+      lowCompressor.release.value = 0.1 // Longer release for smoother decay
+      
+      const highCompressor = ctx.createDynamicsCompressor()
+      highCompressor.threshold.value = -28  // Lower threshold for high frequencies
+      highCompressor.knee.value = 10
+      highCompressor.ratio.value = 4
+      highCompressor.attack.value = 0.003   // Faster attack for transients
+      highCompressor.release.value = 0.05
+      
+      // Create a more sophisticated filter chain
+      const lowPass = ctx.createBiquadFilter()
+      lowPass.type = "lowpass"
+      lowPass.frequency.value = 14000   // Higher cutoff for better presence
+      lowPass.Q.value = 0.5             
+      
+      // Add a low shelf to enhance bass response on smaller speakers
+      const lowShelf = ctx.createBiquadFilter()
+      lowShelf.type = "lowshelf"
+      lowShelf.frequency.value = 200    // Boost below 200Hz
+      lowShelf.gain.value = 2           // +2dB boost
+      
+      // Create a multi-band EQ setup
+      const highMidFilter = ctx.createBiquadFilter()
+      highMidFilter.type = "peaking"
+      highMidFilter.frequency.value = 3200  // Target harsh frequencies
+      highMidFilter.gain.value = -3         // More reduction
+      highMidFilter.Q.value = 1.5           // Narrower Q for targeted reduction
+      
+      const lowMidFilter = ctx.createBiquadFilter()
+      lowMidFilter.type = "peaking"
+      lowMidFilter.frequency.value = 800    // Add warmth to lower mids
+      lowMidFilter.gain.value = 1           // Subtle boost
+      lowMidFilter.Q.value = 1.2
+      
+      // Create a presence filter
+      const presenceFilter = ctx.createBiquadFilter()
+      presenceFilter.type = "peaking"
+      presenceFilter.frequency.value = 5500 // Add clarity
+      presenceFilter.gain.value = 1.5       // Subtle boost for presence
+      presenceFilter.Q.value = 1
+      
+      // Create a limiter for the final output
+      const limiter = ctx.createDynamicsCompressor()
+      limiter.threshold.value = -1.5    // Prevent clipping
+      limiter.knee.value = 0
+      limiter.ratio.value = 20          // Heavy limiting ratio
+      limiter.attack.value = 0.001      // Very fast attack
+      limiter.release.value = 0.01      // Fast release
+      
+      // Add a high-quality reverb effect with pre-delay
       const convolver = ctx.createConvolver()
       try {
-        // Create a simple impulse response for reverb
-        const impulseLength = 0.5 // 500ms reverb
+        // Create a more natural impulse response for reverb
+        const impulseLength = 1.8  // Slightly longer reverb tail
         const sampleRate = ctx.sampleRate
         const impulse = ctx.createBuffer(2, sampleRate * impulseLength, sampleRate)
+        
+        // Create a small pre-delay for more natural reverb
+        const preDelay = 0.02 // 20ms pre-delay
+        const preDelaySamples = Math.floor(sampleRate * preDelay)
 
         for (let channel = 0; channel < 2; channel++) {
           const impulseData = impulse.getChannelData(channel)
+          
+          // Clear the buffer initially
           for (let i = 0; i < impulseData.length; i++) {
-            // Exponential decay
-            impulseData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / impulseData.length, 2)
+            impulseData[i] = 0
+          }
+          
+          // Apply pre-delay (silent portion at start)
+          for (let i = preDelaySamples; i < impulseData.length; i++) {
+            const progress = (i - preDelaySamples) / (impulseData.length - preDelaySamples)
+            
+            // Create stereo variation
+            const stereoPhase = channel === 0 ? 0 : 0.3
+            const noise = Math.random() * 2 - 1
+            
+            // Create a more natural decay curve with three phases
+            if (progress < 0.1) {
+              // Early reflections - sharp initial decay
+              impulseData[i] = noise * Math.pow(1 - progress / 0.1, 0.6) * 0.7
+            } else if (progress < 0.3) {
+              // Mid reflections - slower decay
+              impulseData[i] = noise * 0.5 * Math.pow(1 - (progress - 0.1) / 0.2, 0.8)
+            } else {
+              // Late reflections - very gradual exponential decay
+              impulseData[i] = noise * 0.3 * Math.pow(1 - (progress - 0.3) / 0.7, 1.8) * 
+                               // Add subtle modulation for richer reverb
+                               (1 + 0.1 * Math.sin(progress * 20 + stereoPhase))
+            }
           }
         }
 
         convolver.buffer = impulse
+        
+        // Create a reverb mixer for better control
         const reverbGain = ctx.createGain()
-        reverbGain.gain.value = 0.1 // Subtle reverb
-        masterGain.connect(reverbGain)
-        reverbGain.connect(convolver)
-        convolver.connect(ctx.destination)
+        reverbGain.gain.value = 0.15  // Slightly more reverb
+        
+        const dryGain = ctx.createGain()
+        dryGain.gain.value = 0.85     // Maintain strong dry signal
+        
+        // Create a high-pass filter for the reverb to prevent muddy low end
+        const reverbHighPass = ctx.createBiquadFilter()
+        reverbHighPass.type = "highpass"
+        reverbHighPass.frequency.value = 300  // Remove low frequencies from reverb
+        
+        // Build enhanced signal chain
+        masterGain.connect(lowShelf)
+        lowShelf.connect(lowMidFilter)
+        lowMidFilter.connect(highMidFilter)
+        highMidFilter.connect(presenceFilter)
+        presenceFilter.connect(lowPass)
+        
+        // Create parallel compression paths
+        const bandSplitter = ctx.createGain()
+        lowPass.connect(bandSplitter)
+        
+        // Low band compression path
+        bandSplitter.connect(lowCompressor)
+        lowCompressor.connect(limiter)
+        
+        // High band compression path (in parallel)
+        bandSplitter.connect(highCompressor)
+        highCompressor.connect(limiter)
+        
+        // Final limiter to output
+        limiter.connect(ctx.destination)
+        
+        // Create reverb chain with split path
+        lowPass.connect(dryGain)       // Direct dry signal
+        dryGain.connect(limiter)       // Direct to output
+        
+        // Wet reverb path
+        lowPass.connect(reverbGain)    // Take signal post-EQ
+        reverbGain.connect(reverbHighPass)
+        reverbHighPass.connect(convolver)
+        convolver.connect(limiter)     // Reverb to output
       } catch (e) {
-        console.warn("Couldn't create reverb", e)
+        // Fallback in case of error - simplified but improved chain
+        console.warn("Couldn't create full effects chain", e)
+        masterGain.connect(lowShelf)
+        lowShelf.connect(highMidFilter)
+        highMidFilter.connect(lowCompressor)
+        lowCompressor.connect(limiter)
+        limiter.connect(ctx.destination)
       }
 
-      // Handle percussion sounds with improved quality
+      // Handle percussion sounds with significantly improved quality
       if (["KICK", "SNARE", "HAT", "RIDE"].includes(note)) {
         if (note === "KICK") {
-          // Improved kick drum with body and click
-          const clickOsc = ctx.createOscillator()
-          const clickGain = ctx.createGain()
-          clickOsc.type = "sine"
-          clickOsc.frequency.setValueAtTime(160, now)
-          clickOsc.frequency.exponentialRampToValueAtTime(50, now + 0.03)
-          clickGain.gain.setValueAtTime(0.9 * velocity, now)
-          clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
-          clickOsc.connect(clickGain)
-          clickGain.connect(masterGain)
-          clickOsc.start(now)
-          clickOsc.stop(now + 0.1)
-          sources.push({ osc: clickOsc, gain: clickGain })
-
-          // Body of the kick
-          const bodyOsc = ctx.createOscillator()
-          const bodyGain = ctx.createGain()
-          bodyOsc.type = "sine"
-          bodyOsc.frequency.setValueAtTime(60, now)
-          bodyOsc.frequency.exponentialRampToValueAtTime(40, now + 0.2)
-          bodyGain.gain.setValueAtTime(0.8 * velocity, now)
-          bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4)
-          bodyOsc.connect(bodyGain)
-          bodyGain.connect(masterGain)
-          bodyOsc.start(now)
-          bodyOsc.stop(now + 0.4)
-          sources.push({ osc: bodyOsc, gain: bodyGain })
+          // Professional-quality kick drum with attack, body and sub
+          
+          // Create a dedicated kick EQ and compressor
+          const kickEQ = ctx.createBiquadFilter();
+          kickEQ.type = "lowshelf";
+          kickEQ.frequency.value = 100;
+          kickEQ.gain.value = 3; // Boost the lows
+          
+          const kickComp = ctx.createDynamicsCompressor();
+          kickComp.threshold.value = -12;
+          kickComp.knee.value = 6;
+          kickComp.ratio.value = 4;
+          kickComp.attack.value = 0.005;
+          kickComp.release.value = 0.05;
+          
+          // Sub frequency component
+          const subOsc = ctx.createOscillator();
+          const subGain = ctx.createGain();
+          subOsc.type = "sine";
+          subOsc.frequency.setValueAtTime(55, now); // Lower sub frequency
+          subOsc.frequency.exponentialRampToValueAtTime(35, now + 0.4); // Deeper sub drop
+          
+          // Improved envelope shaping
+          subGain.gain.setValueAtTime(0, now);
+          subGain.gain.linearRampToValueAtTime(0.7 * velocity, now + 0.008); // Quick attack
+          subGain.gain.exponentialRampToValueAtTime(0.2 * velocity, now + 0.1); // Decay to sustain
+          subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5); // Longer release
+          
+          subOsc.connect(subGain);
+          subGain.connect(kickEQ);
+          subOsc.start(now);
+          subOsc.stop(now + 0.5);
+          sources.push({ osc: subOsc, gain: subGain });
+          
+          // Body/punch component with saturation
+          const bodyOsc = ctx.createOscillator();
+          const bodyGain = ctx.createGain();
+          const bodyShaperA = ctx.createWaveShaper();
+          const bodyShaperB = ctx.createWaveShaper();
+          
+          // Create subtle waveshaping for warm saturation
+          const makeDistortionCurve = (amount) => {
+            const k = typeof amount === 'number' ? amount : 5;
+            const n_samples = 2048;
+            const curve = new Float32Array(n_samples);
+            for (let i = 0; i < n_samples; ++i) {
+              const x = i * 2 / n_samples - 1;
+              curve[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+            }
+            return curve;
+          };
+          
+          bodyShaperA.curve = makeDistortionCurve(2); // Light saturation
+          bodyShaperB.curve = makeDistortionCurve(5); // Heavier saturation
+          
+          bodyOsc.type = "sine";
+          bodyOsc.frequency.setValueAtTime(80, now);
+          bodyOsc.frequency.exponentialRampToValueAtTime(55, now + 0.15);
+          
+          bodyGain.gain.setValueAtTime(0, now);
+          bodyGain.gain.linearRampToValueAtTime(0.8 * velocity, now + 0.005);
+          bodyGain.gain.exponentialRampToValueAtTime(0.1 * velocity, now + 0.2);
+          bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+          
+          // Add saturation in parallel for richer harmonics
+          const dryBodyGain = ctx.createGain();
+          dryBodyGain.gain.value = 0.7;
+          
+          const wetBodyGainA = ctx.createGain();
+          wetBodyGainA.gain.value = 0.2;
+          
+          const wetBodyGainB = ctx.createGain();
+          wetBodyGainB.gain.value = 0.1;
+          
+          bodyOsc.connect(dryBodyGain);
+          bodyOsc.connect(wetBodyGainA);
+          bodyOsc.connect(wetBodyGainB);
+          
+          dryBodyGain.connect(bodyGain);
+          
+          wetBodyGainA.connect(bodyShaperA);
+          bodyShaperA.connect(bodyGain);
+          
+          wetBodyGainB.connect(bodyShaperB);
+          bodyShaperB.connect(bodyGain);
+          
+          bodyGain.connect(kickEQ);
+          bodyOsc.start(now);
+          bodyOsc.stop(now + 0.4);
+          sources.push({ osc: bodyOsc, gain: bodyGain });
+          
+          // Click/attack component
+          const clickOsc = ctx.createOscillator();
+          const clickGain = ctx.createGain();
+          const clickFilter = ctx.createBiquadFilter();
+          
+          clickFilter.type = "bandpass";
+          clickFilter.frequency.value = 4000;
+          clickFilter.Q.value = 1.5;
+          
+          clickOsc.type = "triangle";
+          clickOsc.frequency.setValueAtTime(180, now);
+          clickOsc.frequency.exponentialRampToValueAtTime(60, now + 0.03);
+          
+          clickGain.gain.setValueAtTime(0, now);
+          clickGain.gain.linearRampToValueAtTime(0.6 * velocity, now + 0.001);
+          clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+          
+          clickOsc.connect(clickGain);
+          clickGain.connect(clickFilter);
+          clickFilter.connect(kickEQ);
+          clickOsc.start(now);
+          clickOsc.stop(now + 0.07);
+          sources.push({ osc: clickOsc, gain: clickGain });
+          
+          // Connect the kick processing chain to the master chain
+          kickEQ.connect(kickComp);
+          kickComp.connect(masterGain);
+          
         } else if (note === "SNARE") {
-          // Improved snare with noise and tone
-          const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate)
-          const noiseData = noiseBuffer.getChannelData(0)
+          // Professional-quality snare with body, noise and resonance
+          
+          // Create specialized processing for snare
+          const snareBandpass = ctx.createBiquadFilter();
+          snareBandpass.type = "bandpass";
+          snareBandpass.frequency.value = 800;
+          snareBandpass.Q.value = 1;
+          
+          const snareHighpass = ctx.createBiquadFilter();
+          snareHighpass.type = "highpass";
+          snareHighpass.frequency.value = 700;
+          
+          // Create shaped noise for the snare body
+          const shapedNoiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
+          const noiseData = shapedNoiseBuffer.getChannelData(0);
+          
+          // Shape the noise with a natural envelope
           for (let i = 0; i < noiseData.length; i++) {
-            noiseData[i] = Math.random() * 2 - 1
+            const progress = i / noiseData.length;
+            // Add some coloration to the noise
+            const noise = Math.random() * 2 - 1;
+            
+            if (progress < 0.05) {
+              // Quick attack
+              noiseData[i] = noise * (progress / 0.05) * 0.9;
+            } else {
+              // Natural exponential decay
+              noiseData[i] = noise * Math.pow(1 - (progress - 0.05) / 0.95, 1.5) * 0.9;
+            }
           }
-
-          const noiseSource = ctx.createBufferSource()
-          const noiseGain = ctx.createGain()
-          noiseSource.buffer = noiseBuffer
-          noiseGain.gain.setValueAtTime(0.4 * velocity, now)
-          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2)
-          noiseSource.connect(noiseGain)
-          noiseGain.connect(masterGain)
-          noiseSource.start(now)
-          sources.push({ gain: noiseGain, osc: ctx.createOscillator(), source: noiseSource })
-
-          // Tone component
-          const toneOsc = ctx.createOscillator()
-          const toneGain = ctx.createGain()
-          toneOsc.type = "triangle"
-          toneOsc.frequency.value = 180
-          toneGain.gain.setValueAtTime(0.5 * velocity, now)
-          toneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
-          toneOsc.connect(toneGain)
-          toneGain.connect(masterGain)
-          toneOsc.start(now)
-          toneOsc.stop(now + 0.1)
-          sources.push({ osc: toneOsc, gain: toneGain })
-        } else {
-          // Improved hi-hat and ride with filtered noise
-          const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate)
-          const noiseData = noiseBuffer.getChannelData(0)
-          for (let i = 0; i < noiseData.length; i++) {
-            noiseData[i] = Math.random() * 2 - 1
+          
+          // Create a more refined noise source
+          const noiseSource = ctx.createBufferSource();
+          const noiseGain = ctx.createGain();
+          noiseSource.buffer = shapedNoiseBuffer;
+          
+          // Apply an envelope to the noise
+          noiseGain.gain.setValueAtTime(0.3 * velocity, now);
+          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          
+          // Process noise through filters
+          noiseSource.connect(snareBandpass);
+          snareBandpass.connect(noiseGain);
+          noiseGain.connect(masterGain);
+          noiseSource.start(now);
+          sources.push({ gain: noiseGain, osc: ctx.createOscillator(), source: noiseSource });
+          
+          // Create two tone components for richer snare body
+          
+          // Main tone - higher frequency "crack"
+          const toneOsc1 = ctx.createOscillator();
+          const toneGain1 = ctx.createGain();
+          toneOsc1.type = "triangle";
+          toneOsc1.frequency.value = 220;
+          
+          toneGain1.gain.setValueAtTime(0, now);
+          toneGain1.gain.linearRampToValueAtTime(0.5 * velocity, now + 0.003);
+          toneGain1.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+          
+          toneOsc1.connect(toneGain1);
+          toneGain1.connect(snareHighpass);
+          snareHighpass.connect(masterGain);
+          toneOsc1.start(now);
+          toneOsc1.stop(now + 0.12);
+          sources.push({ osc: toneOsc1, gain: toneGain1 });
+          
+          // Second tone - lower frequency "body"
+          const toneOsc2 = ctx.createOscillator();
+          const toneGain2 = ctx.createGain();
+          toneOsc2.type = "sine";
+          toneOsc2.frequency.value = 140;
+          
+          toneGain2.gain.setValueAtTime(0, now);
+          toneGain2.gain.linearRampToValueAtTime(0.4 * velocity, now + 0.005);
+          toneGain2.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+          
+          toneOsc2.connect(toneGain2);
+          toneGain2.connect(masterGain);
+          toneOsc2.start(now);
+          toneOsc2.stop(now + 0.08);
+          sources.push({ osc: toneOsc2, gain: toneGain2 });
+          
+        } else if (note === "HAT") {
+          // Professional-quality hi-hat with resonant metallic character
+          
+          // Create specialized processing
+          const hatHighpass = ctx.createBiquadFilter();
+          hatHighpass.type = "highpass";
+          hatHighpass.frequency.value = 7000;
+          hatHighpass.Q.value = 0.8;
+          
+          const hatPeakFilter = ctx.createBiquadFilter();
+          hatPeakFilter.type = "peaking";
+          hatPeakFilter.frequency.value = 10000;
+          hatPeakFilter.gain.value = 5;
+          hatPeakFilter.Q.value = 2;
+          
+          // Generate spectrally shaped noise for more realistic hat sound
+          const hatBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+          const hatData = hatBuffer.getChannelData(0);
+          
+          // Apply spectral and temporal shaping
+          for (let i = 0; i < hatData.length; i++) {
+            const progress = i / hatData.length;
+            // Create a blend of multiple oscillations for metallic character
+            const metallic = 
+              Math.sin(progress * 80) * 0.3 + 
+              Math.sin(progress * 200) * 0.2 + 
+              Math.sin(progress * 500) * 0.1 + 
+              Math.random() * 0.4;
+              
+            // Apply envelope
+            if (progress < 0.02) {
+              // Fast attack
+              hatData[i] = metallic * (progress / 0.02);
+            } else {
+              // Rapid initial decay followed by longer tail
+              const decayFactor = progress < 0.1 ? 
+                Math.pow(1 - (progress - 0.02) / 0.08, 1.2) : 
+                Math.pow(1 - (progress - 0.1) / 0.9, 3) * 0.4;
+              
+              hatData[i] = metallic * decayFactor;
+            }
           }
-
-          const noiseSource = ctx.createBufferSource()
-          const noiseGain = ctx.createGain()
-          const filter = ctx.createBiquadFilter()
-
-          filter.type = "highpass"
-          filter.frequency.value = note === "HAT" ? 8000 : 6000
-          filter.Q.value = 1.5
-
-          noiseSource.buffer = noiseBuffer
-          noiseGain.gain.setValueAtTime(0.3 * velocity, now)
-          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + (note === "HAT" ? 0.1 : 0.3))
-
-          noiseSource.connect(filter)
-          filter.connect(noiseGain)
-          noiseGain.connect(masterGain)
-          noiseSource.start(now)
-          sources.push({ gain: noiseGain, osc: ctx.createOscillator(), source: noiseSource })
-
-          if (note === "RIDE") {
-            // Add a metallic tone for the ride
-            const toneOsc = ctx.createOscillator()
-            const toneGain = ctx.createGain()
-            toneOsc.type = "triangle"
-            toneOsc.frequency.value = 1000
-            toneGain.gain.setValueAtTime(0.1 * velocity, now)
-            toneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3)
-            toneOsc.connect(toneGain)
-            toneGain.connect(masterGain)
-            toneOsc.start(now)
-            toneOsc.stop(now + 0.3)
-            sources.push({ osc: toneOsc, gain: toneGain })
+          
+          const hatSource = ctx.createBufferSource();
+          const hatGain = ctx.createGain();
+          hatSource.buffer = hatBuffer;
+          
+          // Apply gain envelope
+          hatGain.gain.setValueAtTime(0.2 * velocity, now);
+          hatGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          
+          // Connect through the processing chain
+          hatSource.connect(hatHighpass);
+          hatHighpass.connect(hatPeakFilter);
+          hatPeakFilter.connect(hatGain);
+          hatGain.connect(masterGain);
+          hatSource.start(now);
+          sources.push({ gain: hatGain, osc: ctx.createOscillator(), source: hatSource });
+          
+        } else if (note === "RIDE") {
+          // Professional-quality ride cymbal with complex resonances and spectral richness
+          
+          // Create specialized processing
+          const rideHighpass = ctx.createBiquadFilter();
+          rideHighpass.type = "highpass";
+          rideHighpass.frequency.value = 3000;
+          
+          const ridePeak1 = ctx.createBiquadFilter();
+          ridePeak1.type = "peaking";
+          ridePeak1.frequency.value = 4500;
+          ridePeak1.gain.value = 6;
+          ridePeak1.Q.value = 2.5;
+          
+          const ridePeak2 = ctx.createBiquadFilter();
+          ridePeak2.type = "peaking";
+          ridePeak2.frequency.value = 8000;
+          ridePeak2.gain.value = 4;
+          ridePeak2.Q.value = 1.5;
+          
+          // Generate complex noise for ride with longer sustain
+          const rideBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.6, ctx.sampleRate);
+          const rideData = rideBuffer.getChannelData(0);
+          
+          // Create complex metallic resonances
+          for (let i = 0; i < rideData.length; i++) {
+            const progress = i / rideData.length;
+            
+            // Complex multi-layered oscillations for realistic bell character
+            const bell = 
+              Math.sin(progress * 120) * 0.2 + 
+              Math.sin(progress * 250) * 0.15 + 
+              Math.sin(progress * 510) * 0.1 +
+              Math.sin(progress * 1200) * 0.05 +
+              Math.random() * 0.5;
+            
+            // Apply sophisticated envelope with distinct ping followed by wash
+            if (progress < 0.01) {
+              // Very fast attack
+              rideData[i] = bell * (progress / 0.01);
+            } else if (progress < 0.05) {
+              // Initial strong ping decay
+              rideData[i] = bell * Math.pow(1 - (progress - 0.01) / 0.04, 0.8);
+            } else {
+              // Long wash decay
+              rideData[i] = bell * 0.5 * Math.pow(1 - (progress - 0.05) / 0.95, 2);
+            }
           }
+          
+          const rideSource = ctx.createBufferSource();
+          const rideGain = ctx.createGain();
+          rideSource.buffer = rideBuffer;
+          
+          // Apply gain envelope with long tail
+          rideGain.gain.setValueAtTime(0.3 * velocity, now);
+          rideGain.gain.exponentialRampToValueAtTime(0.15 * velocity, now + 0.1);
+          rideGain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+          
+          // Process through filter chain
+          rideSource.connect(rideHighpass);
+          rideHighpass.connect(ridePeak1);
+          ridePeak1.connect(ridePeak2);
+          ridePeak2.connect(rideGain);
+          rideGain.connect(masterGain);
+          rideSource.start(now);
+          sources.push({ gain: rideGain, osc: ctx.createOscillator(), source: rideSource });
+          
+          // Add bell tone component for ride bell character
+          const bellOsc = ctx.createOscillator();
+          const bellGain = ctx.createGain();
+          bellOsc.type = "sine";
+          bellOsc.frequency.value = 1800;
+          
+          bellGain.gain.setValueAtTime(0, now);
+          bellGain.gain.linearRampToValueAtTime(0.15 * velocity, now + 0.002);
+          bellGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          
+          bellOsc.connect(bellGain);
+          bellGain.connect(masterGain);
+          bellOsc.start(now);
+          bellOsc.stop(now + 0.3);
+          sources.push({ osc: bellOsc, gain: bellGain });
         }
 
         const sourceId = `${note}-${now}`
@@ -409,148 +784,470 @@ export default function Home() {
         return
       }
 
-      // Handle melodic notes with improved quality
+      // Handle melodic notes with professional-quality sound design
       const freq = getFrequency(note, transpose)
       if (!freq) return
 
-      // Create different timbres based on the selected synth type
-      if (synthType === "Piano") {
-        // Piano-like sound with multiple harmonics
-        const fundamentalOsc = ctx.createOscillator()
-        const fundamentalGain = ctx.createGain()
-        fundamentalOsc.type = "triangle"
-        fundamentalOsc.frequency.value = freq
+      // Use note-specific synth type if available, otherwise use the global synth type
+      const effectiveSynthType = noteSynthType || synthType
+      
+      // Create dedicated instrument-specific processing
+      // These will be instrument-specific EQ and dynamics tailored to each instrument type
+      
+      if (effectiveSynthType === "Piano") {
+        // Professional grand piano with realistic hammer action and resonance
+        
+        // Create piano-specific processing chain
+        const pianoLowMid = ctx.createBiquadFilter();
+        pianoLowMid.type = "peaking";
+        pianoLowMid.frequency.value = 250;
+        pianoLowMid.gain.value = 2;
+        pianoLowMid.Q.value = 1;
+        
+        const pianoPresence = ctx.createBiquadFilter();
+        pianoPresence.type = "peaking";
+        pianoPresence.frequency.value = 5000;
+        pianoPresence.gain.value = 3;
+        pianoPresence.Q.value = 0.8;
+        
+        const pianoComp = ctx.createDynamicsCompressor();
+        pianoComp.threshold.value = -20;
+        pianoComp.knee.value = 10;
+        pianoComp.ratio.value = 3;
+        pianoComp.attack.value = 0.003;
+        pianoComp.release.value = 0.1;
+        
+        // Piano chain routing
+        pianoLowMid.connect(pianoPresence);
+        pianoPresence.connect(pianoComp);
+        pianoComp.connect(masterGain);
+        
+        // Fundamental pitch - hammer strike and initial tone
+        const fundamentalOsc = ctx.createOscillator();
+        const fundamentalGain = ctx.createGain();
+        fundamentalOsc.type = "triangle";
+        fundamentalOsc.frequency.value = freq;
 
-        // Piano-like ADSR envelope
-        fundamentalGain.gain.setValueAtTime(0, now)
-        fundamentalGain.gain.linearRampToValueAtTime(0.5 * velocity, now + 0.005) // Fast attack
-        fundamentalGain.gain.exponentialRampToValueAtTime(0.3 * velocity, now + 0.1) // Quick decay
-        fundamentalGain.gain.setTargetAtTime(0.2 * velocity, now + 0.1, 0.8) // Sustain
-        fundamentalGain.gain.setTargetAtTime(0, stopTime - 0.1, 0.2) // Release
+        // More realistic ADSR with initial hammer strike transient
+        fundamentalGain.gain.setValueAtTime(0, now);
+        fundamentalGain.gain.linearRampToValueAtTime(0.7 * velocity, now + 0.002); // Very fast initial hammer strike
+        fundamentalGain.gain.exponentialRampToValueAtTime(0.4 * velocity, now + 0.06); // Quick initial decay
+        fundamentalGain.gain.setTargetAtTime(0.25 * velocity, now + 0.06, 0.2); // Body sustain
+        fundamentalGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.1); // Natural release
+        
+        // Create subtle pitch variation for more natural attack
+        fundamentalOsc.frequency.setValueAtTime(freq * 1.003, now); // Slightly sharp attack
+        fundamentalOsc.frequency.exponentialRampToValueAtTime(freq, now + 0.01); // Quick pitch stabilization
 
-        fundamentalOsc.connect(fundamentalGain)
-        fundamentalGain.connect(masterGain)
-        fundamentalOsc.start(now)
-        fundamentalOsc.stop(stopTime + 0.2) // Add a bit of release time
-        sources.push({ osc: fundamentalOsc, gain: fundamentalGain })
+        fundamentalOsc.connect(fundamentalGain);
+        fundamentalGain.connect(pianoLowMid);
+        fundamentalOsc.start(now);
+        fundamentalOsc.stop(stopTime + 0.3); // Longer release for reverberation
+        sources.push({ osc: fundamentalOsc, gain: fundamentalGain });
 
-        // Add harmonics for richness
-        const harmonics = [2, 3, 4, 5]
-        const harmonicGains = [0.25, 0.15, 0.1, 0.05] // Decreasing gain for higher harmonics
+        // Create complex harmonic structure for realistic piano tone
+        // Carefully tuned harmonic series with accurate envelope shapes
+        const harmonics = [
+          { ratio: 2, gain: 0.26, decay: 0.4 },    // Octave
+          { ratio: 3, gain: 0.16, decay: 0.35 },   // Octave + fifth
+          { ratio: 4, gain: 0.12, decay: 0.3 },    // Two octaves
+          { ratio: 5, gain: 0.09, decay: 0.25 },   // Two octaves + major third
+          { ratio: 6, gain: 0.07, decay: 0.25 },   // Two octaves + fifth
+          { ratio: 7, gain: 0.05, decay: 0.2 }     // Two octaves + minor seventh
+        ];
 
-        harmonics.forEach((harmonic, i) => {
-          const harmonicOsc = ctx.createOscillator()
-          const harmonicGain = ctx.createGain()
-          harmonicOsc.type = "sine"
-          harmonicOsc.frequency.value = freq * harmonic
-
-          harmonicGain.gain.setValueAtTime(0, now)
-          harmonicGain.gain.linearRampToValueAtTime(harmonicGains[i] * velocity, now + 0.005)
-          harmonicGain.gain.exponentialRampToValueAtTime(harmonicGains[i] * 0.5 * velocity, now + 0.1)
-          harmonicGain.gain.setTargetAtTime(0, stopTime - 0.1, 0.2)
-
-          harmonicOsc.connect(harmonicGain)
-          harmonicGain.connect(masterGain)
-          harmonicOsc.start(now)
-          harmonicOsc.stop(stopTime + 0.2)
-          sources.push({ osc: harmonicOsc, gain: harmonicGain })
-        })
-      } else if (synthType === "Music Box") {
-        // Music box with bright, bell-like tone
-        const mainOsc = ctx.createOscillator()
-        const mainGain = ctx.createGain()
-        mainOsc.type = "sine"
-        mainOsc.frequency.value = freq
-
-        // Bell-like envelope with quick attack and long decay
-        mainGain.gain.setValueAtTime(0, now)
-        mainGain.gain.linearRampToValueAtTime(0.7 * velocity, now + 0.002) // Very fast attack
-        mainGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 2) // Long decay
-
-        mainOsc.connect(mainGain)
-        mainGain.connect(masterGain)
-        mainOsc.start(now)
-        mainOsc.stop(now + duration * 2)
-        sources.push({ osc: mainOsc, gain: mainGain })
-
-        // Add high harmonics for the characteristic music box sound
-        const harmonics = [3, 4, 7, 10]
-        const harmonicGains = [0.3, 0.2, 0.1, 0.05]
-
-        harmonics.forEach((harmonic, i) => {
-          const harmonicOsc = ctx.createOscillator()
-          const harmonicGain = ctx.createGain()
-          harmonicOsc.type = "sine"
-          harmonicOsc.frequency.value = freq * harmonic
-
-          harmonicGain.gain.setValueAtTime(0, now)
-          harmonicGain.gain.linearRampToValueAtTime(harmonicGains[i] * velocity, now + 0.002)
-          harmonicGain.gain.exponentialRampToValueAtTime(0.001, now + duration * (1.5 - i * 0.2)) // Higher harmonics decay faster
-
-          harmonicOsc.connect(harmonicGain)
-          harmonicGain.connect(masterGain)
-          harmonicOsc.start(now)
-          harmonicOsc.stop(now + duration * 2)
-          sources.push({ osc: harmonicOsc, gain: harmonicGain })
-        })
-      } else {
-        // Improved synthesizer sounds (Sine, Square, Saw, Triangle)
-        const mainOsc = ctx.createOscillator()
-        const mainGain = ctx.createGain()
-
-        mainOsc.type = synthType.toLowerCase() as OscillatorType
-        mainOsc.frequency.value = freq
-
-        // Synth-like ADSR envelope
-        mainGain.gain.setValueAtTime(0, now)
-        mainGain.gain.linearRampToValueAtTime(0.6 * velocity, now + 0.01) // Attack
-        mainGain.gain.exponentialRampToValueAtTime(0.4 * velocity, now + 0.1) // Decay
-        mainGain.gain.setTargetAtTime(0.3 * velocity, now + 0.1, 0.3) // Sustain
-        mainGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.1) // Release
-
-        mainOsc.connect(mainGain)
-        mainGain.connect(masterGain)
-        mainOsc.start(now)
-        mainOsc.stop(stopTime + 0.1)
-        sources.push({ osc: mainOsc, gain: mainGain })
-
-        // Add a sub-oscillator for bass notes (for frequencies below 220Hz)
-        if (freq < 220) {
-          const subOsc = ctx.createOscillator()
-          const subGain = ctx.createGain()
-          subOsc.type = "sine"
-          subOsc.frequency.value = freq / 2 // One octave lower
-
-          subGain.gain.setValueAtTime(0, now)
-          subGain.gain.linearRampToValueAtTime(0.3 * velocity, now + 0.01)
-          subGain.gain.exponentialRampToValueAtTime(0.2 * velocity, now + 0.1)
-          subGain.gain.setTargetAtTime(0.15 * velocity, now + 0.1, 0.3)
-          subGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.1)
-
-          subOsc.connect(subGain)
-          subGain.connect(masterGain)
-          subOsc.start(now)
-          subOsc.stop(stopTime + 0.1)
-          sources.push({ osc: subOsc, gain: subGain })
+        harmonics.forEach(harmonic => {
+          const harmonicOsc = ctx.createOscillator();
+          const harmonicGain = ctx.createGain();
+          // Use sine for pure harmonics
+          harmonicOsc.type = "sine";
+          harmonicOsc.frequency.value = freq * harmonic.ratio;
+          
+          // Each harmonic has its own envelope - higher harmonics have shorter sustain
+          harmonicGain.gain.setValueAtTime(0, now);
+          harmonicGain.gain.linearRampToValueAtTime(harmonic.gain * velocity, now + 0.002);
+          harmonicGain.gain.exponentialRampToValueAtTime(harmonic.gain * 0.5 * velocity, now + 0.05);
+          harmonicGain.gain.setTargetAtTime(harmonic.gain * 0.2 * velocity, now + 0.05, harmonic.decay);
+          harmonicGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.08);
+          
+          harmonicOsc.connect(harmonicGain);
+          harmonicGain.connect(pianoLowMid);
+          harmonicOsc.start(now);
+          harmonicOsc.stop(stopTime + 0.3);
+          sources.push({ osc: harmonicOsc, gain: harmonicGain });
+        });
+        
+        // Add hammer noise transient for realistic attack
+        const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+        const noiseData = noiseBuffer.getChannelData(0);
+        
+        for (let i = 0; i < noiseData.length; i++) {
+          const progress = i / noiseData.length;
+          noiseData[i] = (Math.random() * 2 - 1) * Math.pow(1 - progress, 4);
         }
+        
+        const noiseSource = ctx.createBufferSource();
+        const noiseGain = ctx.createGain();
+        const noiseFilter = ctx.createBiquadFilter();
+        
+        noiseFilter.type = "bandpass";
+        noiseFilter.frequency.value = freq * 2; // Noise frequency relates to the note
+        noiseFilter.Q.value = 0.5;
+        
+        noiseSource.buffer = noiseBuffer;
+        noiseGain.gain.value = 0.08 * velocity;
+        
+        noiseSource.connect(noiseGain);
+        noiseGain.connect(noiseFilter);
+        noiseFilter.connect(pianoLowMid);
+        noiseSource.start(now);
+        sources.push({ gain: noiseGain, osc: ctx.createOscillator(), source: noiseSource });
+        
+        // Create sympathetic string resonance for richer sound
+        // This simulates the other strings vibrating when a note is struck
+        if (freq > 110) { // Only for higher notes
+          const resonanceOsc = ctx.createOscillator();
+          const resonanceGain = ctx.createGain();
+          resonanceOsc.type = "sine";
+          resonanceOsc.frequency.value = freq * 0.99; // Very slightly detuned
+          
+          resonanceGain.gain.setValueAtTime(0, now);
+          resonanceGain.gain.linearRampToValueAtTime(0.04 * velocity, now + 0.1);
+          resonanceGain.gain.setTargetAtTime(0, stopTime, 0.5); // Much longer release
+          
+          resonanceOsc.connect(resonanceGain);
+          resonanceGain.connect(pianoLowMid);
+          resonanceOsc.start(now);
+          resonanceOsc.stop(stopTime + 0.6);
+          sources.push({ osc: resonanceOsc, gain: resonanceGain });
+        }
+        
+      } else if (effectiveSynthType === "Music Box") {
+        // Professional music box with authentic mechanical sound and rich overtones
+        
+        // Create music box specific processing chain
+        const musicBoxHighMid = ctx.createBiquadFilter();
+        musicBoxHighMid.type = "peaking";
+        musicBoxHighMid.frequency.value = 3000;
+        musicBoxHighMid.gain.value = 4;
+        musicBoxHighMid.Q.value = 2;
+        
+        const musicBoxHighPass = ctx.createBiquadFilter();
+        musicBoxHighPass.type = "highpass";
+        musicBoxHighPass.frequency.value = 300;
+        
+        const musicBoxLowPass = ctx.createBiquadFilter();
+        musicBoxLowPass.type = "lowpass";
+        musicBoxLowPass.frequency.value = 8000;
+        
+        // Chain routing
+        musicBoxHighPass.connect(musicBoxHighMid);
+        musicBoxHighMid.connect(musicBoxLowPass);
+        musicBoxLowPass.connect(masterGain);
+        
+        // Primary tone - fundamental frequency with bright attack
+        const mainOsc = ctx.createOscillator();
+        const mainGain = ctx.createGain();
+        
+        mainOsc.type = "sine";
+        mainOsc.frequency.value = freq;
 
-        // Add a subtle detuned oscillator for richness
-        const detuneOsc = ctx.createOscillator()
-        const detuneGain = ctx.createGain()
-        detuneOsc.type = mainOsc.type
-        detuneOsc.frequency.value = freq * 1.003 // Slightly detuned
+        // Authentic music box pluck with extremely fast attack and natural decay
+        mainGain.gain.setValueAtTime(0, now);
+        mainGain.gain.linearRampToValueAtTime(0.8 * velocity, now + 0.001); // Instant pluck
+        mainGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 2); // Long natural decay
+        
+        // Add slight pitch variation for metallic character
+        mainOsc.frequency.setValueAtTime(freq * 1.002, now);
+        mainOsc.frequency.exponentialRampToValueAtTime(freq, now + 0.01);
 
-        detuneGain.gain.setValueAtTime(0, now)
-        detuneGain.gain.linearRampToValueAtTime(0.1 * velocity, now + 0.01)
-        detuneGain.gain.exponentialRampToValueAtTime(0.07 * velocity, now + 0.1)
-        detuneGain.gain.setTargetAtTime(0.05 * velocity, now + 0.1, 0.3)
-        detuneGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.1)
+        mainOsc.connect(mainGain);
+        mainGain.connect(musicBoxHighPass);
+        mainOsc.start(now);
+        mainOsc.stop(now + duration * 3);
+        sources.push({ osc: mainOsc, gain: mainGain });
 
-        detuneOsc.connect(detuneGain)
-        detuneGain.connect(masterGain)
-        detuneOsc.start(now)
-        detuneOsc.stop(stopTime + 0.1)
-        sources.push({ osc: detuneOsc, gain: detuneGain })
+        // Carefully tuned overtone series for authentic music box tone
+        // Music boxes have distinctive non-harmonic overtones due to the comb shape
+        const overtones = [
+          { ratio: 3, gain: 0.4, decay: 1.0 },     // 12th
+          { ratio: 3.97, gain: 0.3, decay: 0.9 },  // ~2 octaves (slightly sharp - characteristic)
+          { ratio: 6.23, gain: 0.15, decay: 0.8 }, // High inharmonic
+          { ratio: 8.46, gain: 0.1, decay: 0.7 },  // High inharmonic
+          { ratio: 12.1, gain: 0.05, decay: 0.6 }  // Extremely high tine resonance
+        ];
+
+        overtones.forEach(overtone => {
+          const overtoneOsc = ctx.createOscillator();
+          const overtoneGain = ctx.createGain();
+          
+          overtoneOsc.type = "sine";
+          overtoneOsc.frequency.value = freq * overtone.ratio;
+          
+          // Each overtone has very fast attack and own decay rate
+          overtoneGain.gain.setValueAtTime(0, now);
+          overtoneGain.gain.linearRampToValueAtTime(overtone.gain * velocity, now + 0.001);
+          overtoneGain.gain.exponentialRampToValueAtTime(0.001, now + duration * overtone.decay);
+
+          overtoneOsc.connect(overtoneGain);
+          overtoneGain.connect(musicBoxHighPass);
+          overtoneOsc.start(now);
+          overtoneOsc.stop(now + duration * (overtone.decay + 1));
+          sources.push({ osc: overtoneOsc, gain: overtoneGain });
+        });
+        
+        // Add mechanical tine contact noise for authentic music box sound
+        const tineNoiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.02, ctx.sampleRate);
+        const tineData = tineNoiseBuffer.getChannelData(0);
+        
+        for (let i = 0; i < tineData.length; i++) {
+          const progress = i / tineData.length;
+          // Very short, filtered click
+          tineData[i] = (Math.random() * 2 - 1) * Math.pow(1 - progress, 10);
+        }
+        
+        const tineSource = ctx.createBufferSource();
+        const tineGain = ctx.createGain();
+        const tineFilter = ctx.createBiquadFilter();
+        
+        tineFilter.type = "bandpass";
+        tineFilter.frequency.value = 5000; // High frequency mechanical click
+        tineFilter.Q.value = 0.7;
+        
+        tineSource.buffer = tineNoiseBuffer;
+        tineGain.gain.value = 0.07 * velocity;
+        
+        tineSource.connect(tineGain);
+        tineGain.connect(tineFilter);
+        tineFilter.connect(musicBoxHighPass);
+        tineSource.start(now);
+        sources.push({ gain: tineGain, osc: ctx.createOscillator(), source: tineSource });
+        
+      } else if (effectiveSynthType === "Sine" || effectiveSynthType === "Triangle") {
+        // Professional analog synthesizer with warm character for soft waveforms
+        
+        // Create warm synth processing chain
+        const synthWarmth = ctx.createBiquadFilter();
+        synthWarmth.type = "lowshelf";
+        synthWarmth.frequency.value = 300;
+        synthWarmth.gain.value = 2;
+        
+        const synthPresence = ctx.createBiquadFilter();
+        synthPresence.type = "peaking";
+        synthPresence.frequency.value = 2000;
+        synthPresence.gain.value = 1;
+        synthPresence.Q.value = 1;
+        
+        // Create a warm tube-like saturation curve
+        const warmthShaper = ctx.createWaveShaper();
+        const makeTubeCurve = () => {
+          const n_samples = 2048;
+          const curve = new Float32Array(n_samples);
+          for (let i = 0; i < n_samples; ++i) {
+            const x = i * 2 / n_samples - 1;
+            // Gentle tube-like saturation
+            curve[i] = Math.sign(x) * (1 - Math.exp(-Math.abs(x) * 3));
+          }
+          return curve;
+        };
+        warmthShaper.curve = makeTubeCurve();
+        
+        // Chain routing with saturation blend
+        synthWarmth.connect(synthPresence);
+        
+        // Split for parallel processing
+        const dryGain = ctx.createGain();
+        dryGain.gain.value = 0.8;
+        synthPresence.connect(dryGain);
+        dryGain.connect(masterGain);
+        
+        const saturationGain = ctx.createGain();
+        saturationGain.gain.value = 0.2; // Subtle tube warmth
+        synthPresence.connect(saturationGain);
+        saturationGain.connect(warmthShaper);
+        warmthShaper.connect(masterGain);
+        
+        // Primary oscillator
+        const mainOsc = ctx.createOscillator();
+        const mainGain = ctx.createGain();
+        
+        mainOsc.type = effectiveSynthType.toLowerCase() as OscillatorType;
+        mainOsc.frequency.value = freq;
+        
+        // Vintage synth envelope with analog-like attack
+        mainGain.gain.setValueAtTime(0, now);
+        mainGain.gain.linearRampToValueAtTime(0.65 * velocity, now + 0.02); // Smooth attack
+        mainGain.gain.exponentialRampToValueAtTime(0.45 * velocity, now + 0.1); // Gentle decay
+        mainGain.gain.setTargetAtTime(0.4 * velocity, now + 0.1, 0.4); // Warm sustain
+        mainGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.15); // Smooth release
+        
+        // Add subtle slow pitch modulation for vintage character
+        if (duration > 0.5) {
+          const vibratoDepth = 0.2; // Subtle
+          const vibratoRate = 5; // 5Hz
+          // Create slow vibrato
+          for (let t = 0.2; t < duration; t += 0.05) {
+            const vibratoTime = now + t;
+            const pitchMod = freq * (1 + Math.sin(t * vibratoRate) * vibratoDepth * 0.001);
+            mainOsc.frequency.setValueAtTime(pitchMod, vibratoTime);
+          }
+        }
+        
+        mainOsc.connect(mainGain);
+        mainGain.connect(synthWarmth);
+        mainOsc.start(now);
+        mainOsc.stop(stopTime + 0.2);
+        sources.push({ osc: mainOsc, gain: mainGain });
+        
+        // Create detuned oscillators for richness (analog-style unison)
+        const detunes = [
+          { ratio: 0.996, gain: 0.25 },  // Slightly flat
+          { ratio: 1.004, gain: 0.25 }   // Slightly sharp
+        ];
+        
+        detunes.forEach(detune => {
+          const detuneOsc = ctx.createOscillator();
+          const detuneGain = ctx.createGain();
+          
+          detuneOsc.type = mainOsc.type;
+          detuneOsc.frequency.value = freq * detune.ratio;
+          
+          // Match envelope to main oscillator with slight variations
+          detuneGain.gain.setValueAtTime(0, now);
+          detuneGain.gain.linearRampToValueAtTime(detune.gain * velocity, now + 0.02 + Math.random() * 0.01);
+          detuneGain.gain.exponentialRampToValueAtTime(detune.gain * 0.7 * velocity, now + 0.12);
+          detuneGain.gain.setTargetAtTime(detune.gain * 0.6 * velocity, now + 0.12, 0.4);
+          detuneGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.15);
+          
+          detuneOsc.connect(detuneGain);
+          detuneGain.connect(synthWarmth);
+          detuneOsc.start(now);
+          detuneOsc.stop(stopTime + 0.2);
+          sources.push({ osc: detuneOsc, gain: detuneGain });
+        });
+        
+        // Add sub-oscillator for frequencies below 220Hz
+        if (freq < 220) {
+          const subOsc = ctx.createOscillator();
+          const subGain = ctx.createGain();
+          
+          subOsc.type = "sine"; // Always sine for clean sub
+          subOsc.frequency.value = freq / 2; // One octave down
+          
+          // Slower attack and release for sub frequencies
+          subGain.gain.setValueAtTime(0, now);
+          subGain.gain.linearRampToValueAtTime(0.4 * velocity, now + 0.03);
+          subGain.gain.exponentialRampToValueAtTime(0.3 * velocity, now + 0.15);
+          subGain.gain.setTargetAtTime(0.25 * velocity, now + 0.15, 0.3);
+          subGain.gain.setTargetAtTime(0, stopTime - 0.1, 0.2);
+          
+          subOsc.connect(subGain);
+          subGain.connect(masterGain); // Bypass filters for cleaner bass
+          subOsc.start(now);
+          subOsc.stop(stopTime + 0.3);
+          sources.push({ osc: subOsc, gain: subGain });
+        }
+        
+      } else if (effectiveSynthType === "Square" || effectiveSynthType === "Saw") {
+        // Professional analog-style synth with harmonic richness for aggressive waveforms
+        
+        // Create chain for harmonic-rich waveforms
+        const synthFilter = ctx.createBiquadFilter();
+        synthFilter.type = "lowpass";
+        synthFilter.frequency.value = Math.min(12000, freq * 20); // Dynamic filter based on note
+        synthFilter.Q.value = 1;
+        
+        // Create filter envelope
+        const filterEnvAmount = 2000 + (freq * 0.5);
+        synthFilter.frequency.setValueAtTime(Math.min(800, freq * 3), now);
+        synthFilter.frequency.linearRampToValueAtTime(
+          Math.min(18000, freq * 20), 
+          now + 0.04
+        ); // Filter opens quickly
+        synthFilter.frequency.exponentialRampToValueAtTime(
+          Math.min(8000, freq * 10), 
+          now + 0.2
+        ); // Then settles
+        
+        const synthComp = ctx.createDynamicsCompressor();
+        synthComp.threshold.value = -18;
+        synthComp.knee.value = 10;
+        synthComp.ratio.value = 4;
+        synthComp.attack.value = 0.001;
+        synthComp.release.value = 0.05;
+        
+        // Chain routing
+        synthFilter.connect(synthComp);
+        synthComp.connect(masterGain);
+        
+        // Primary oscillator with complex envelope
+        const mainOsc = ctx.createOscillator();
+        const mainGain = ctx.createGain();
+        
+        mainOsc.type = effectiveSynthType.toLowerCase() as OscillatorType;
+        mainOsc.frequency.value = freq;
+        
+        // Snappy synth envelope for aggressive waveforms
+        mainGain.gain.setValueAtTime(0, now);
+        mainGain.gain.linearRampToValueAtTime(0.55 * velocity, now + 0.005); // Fast attack
+        mainGain.gain.exponentialRampToValueAtTime(0.35 * velocity, now + 0.1); // Punchy decay
+        mainGain.gain.setTargetAtTime(0.3 * velocity, now + 0.1, 0.2); // Medium sustain
+        mainGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.08); // Medium-fast release
+        
+        mainOsc.connect(mainGain);
+        mainGain.connect(synthFilter);
+        mainOsc.start(now);
+        mainOsc.stop(stopTime + 0.1);
+        sources.push({ osc: mainOsc, gain: mainGain });
+        
+        // Create aggressive unison effect with detuned oscillators
+        const detunes = [
+          { ratio: 0.992, gain: 0.3, phase: 0.2 },    // More detuned for thickness
+          { ratio: 1.008, gain: 0.3, phase: -0.2 }    // Opposite detune direction
+        ];
+        
+        detunes.forEach(detune => {
+          const detuneOsc = ctx.createOscillator();
+          const detuneGain = ctx.createGain();
+          
+          detuneOsc.type = mainOsc.type;
+          detuneOsc.frequency.value = freq * detune.ratio;
+          
+          // Slightly varied envelope for each unison voice
+          const attackVar = 0.005 + Math.random() * 0.003;
+          detuneGain.gain.setValueAtTime(0, now);
+          detuneGain.gain.linearRampToValueAtTime(detune.gain * velocity, now + attackVar);
+          detuneGain.gain.exponentialRampToValueAtTime(detune.gain * 0.6 * velocity, now + 0.1);
+          detuneGain.gain.setTargetAtTime(detune.gain * 0.5 * velocity, now + 0.1, 0.2);
+          detuneGain.gain.setTargetAtTime(0, stopTime - 0.05, 0.08);
+          
+          detuneOsc.connect(detuneGain);
+          detuneGain.connect(synthFilter);
+          detuneOsc.start(now);
+          detuneOsc.stop(stopTime + 0.1);
+          sources.push({ osc: detuneOsc, gain: detuneGain });
+        });
+        
+        // Add sub-oscillator for all notes - especially important for Saw waves
+        const subOsc = ctx.createOscillator();
+        const subGain = ctx.createGain();
+        
+        subOsc.type = "triangle"; // Triangle for sub gives a bit more character than sine
+        subOsc.frequency.value = freq / (freq < 220 ? 2 : 1); // Octave down for low notes
+        
+        const subVolume = freq < 220 ? 0.4 : 0.2; // More sub for bass notes
+        
+        subGain.gain.setValueAtTime(0, now);
+        subGain.gain.linearRampToValueAtTime(subVolume * velocity, now + 0.01);
+        subGain.gain.exponentialRampToValueAtTime(subVolume * 0.8 * velocity, now + 0.1);
+        subGain.gain.setTargetAtTime(subVolume * 0.7 * velocity, now + 0.1, 0.2);
+        subGain.gain.setTargetAtTime(0, stopTime - 0.08, 0.1);
+        
+        subOsc.connect(subGain);
+        subGain.connect(masterGain); // Bypass filter for cleaner sub
+        subOsc.start(now);
+        subOsc.stop(stopTime + 0.2);
+        sources.push({ osc: subOsc, gain: subGain });
       }
 
       const sourceId = `${note}-${now}`
@@ -570,7 +1267,7 @@ export default function Home() {
           const notesToPlay = Array.isArray(event.note) ? event.note : [event.note]
           const limitedNotes = notesToPlay.slice(0, 4)
           for (const note of limitedNotes) {
-            playNoteInternal(note, event.duration, event.velocity || 1)
+            playNoteInternal(note, event.duration, event.velocity || 1, event.synthType)
             notesScheduled++
             if (notesScheduled >= maxNotesToSchedule) return
           }
@@ -611,7 +1308,7 @@ export default function Home() {
       for (const event of notesToPlay) {
         const noteArray = Array.isArray(event.note) ? event.note : [event.note]
         for (const note of noteArray) {
-          playNoteInternal(note, event.duration, event.velocity || 1)
+          playNoteInternal(note, event.duration, event.velocity || 1, event.synthType)
         }
       }
     },
@@ -844,6 +1541,26 @@ export default function Home() {
     URL.revokeObjectURL(url)
   }, [currentTune, bpm, synthType])
 
+  const renameTune = useCallback(() => {
+    const newName = prompt("Enter a new name for this tune:", currentTune.name)
+    if (newName && newName.trim() !== "") {
+      setCurrentTune(prev => ({
+        ...prev,
+        name: newName.trim()
+      }))
+    }
+  }, [currentTune])
+
+  const clearTune = useCallback(() => {
+    if (confirm("Are you sure you want to clear this tune? This cannot be undone.")) {
+      // Create an empty tune with the same name and settings but no notes
+      setCurrentTune(prev => ({
+        ...prev,
+        pattern: [],
+      }))
+    }
+  }, [])
+
   const loadTuneFile = useCallback(() => {
     const input = document.createElement("input")
     input.type = "file"
@@ -992,7 +1709,7 @@ export default function Home() {
       </Head>
       <main
         ref={mainRef}
-        className={`flex select-none min-h-screen flex-col items-center justify-center font-mono relative overflow-hidden ${mode === "Light" ? "light-mode" : "dark-mode"} ${isLowPowerDevice ? "low-power-mode" : ""}`}
+        className={`flex select-none min-h-screen max-h-screen h-screen flex-col items-center justify-center font-mono relative overflow-hidden ${mode === "Light" ? "light-mode" : "dark-mode"} ${isLowPowerDevice ? "low-power-mode" : ""}`}
         tabIndex={0}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -1005,12 +1722,28 @@ export default function Home() {
             <div className="flex h-full">
               <div className="w-[120px] p-2 flex flex-col justify-between retro-panel neon-border-blue">
                 <div>
-                  <button
-                    onClick={() => setMode((m) => (m === "Dark" ? "Light" : "Dark"))}
-                    className="font-mono neon-text-green text-xs cursor-pointer mb-2"
-                  >
-                    {mode}
-                  </button>
+                  <div className="flex items-center gap-1 mb-2">
+                    <button
+                      onClick={() => setMode((m) => (m === "Dark" ? "Light" : "Dark"))}
+                      className="font-mono neon-text-green text-xs cursor-pointer"
+                    >
+                      {mode}
+                    </button>
+                    <button
+                      onClick={renameTune}
+                      className="flex-1 h-5 p-1 bg-black rounded flex items-center justify-center"
+                      title="Rename tune"
+                    >
+                      <Pencil className="w-3 h-3 neon-text-cyan" />
+                    </button>
+                    <button
+                      onClick={clearTune}
+                      className="flex-1 h-5 p-1 bg-black rounded flex items-center justify-center"
+                      title="Clear tune"
+                    >
+                      <Trash2 className="w-3 h-3 neon-text-red" />
+                    </button>
+                  </div>
                   <div
                     className="text-center cursor-pointer px-1 py-1 mb-2 digital-display neon-border-pink"
                     onClick={cycleThroughTunes}
@@ -1026,6 +1759,72 @@ export default function Home() {
                       PAGE {patternPage + 1}/{Math.ceil(beats.length / visibleBeats)}
                     </span>
                   </button>
+                  
+                  {selectedNote && (
+                    <div className="flex flex-col gap-1 mb-2 neon-border-blue p-1">
+                      <div className="text-[8px] font-mono neon-text-blue">
+                        {selectedNote.time === -1 ? 'EDIT ALL NOTES' : 'EDIT NOTE'}
+                      </div>
+                      <div className="text-[10px] font-mono neon-text-pink">
+                        {selectedNote.note} {selectedNote.time === -1 ? '(all instances)' : `at beat ${selectedNote.time + 1}`}
+                      </div>
+                      <select 
+                        className="w-full text-[8px] bg-black neon-border-pink py-1 px-1"
+                        value={selectedNoteSynth}
+                        onChange={(e) => setSelectedNoteSynth(e.target.value as SynthType)}
+                      >
+                        <option value="Piano">Piano</option>
+                        <option value="Music Box">Music Box</option>
+                        <option value="Sine">Sine</option>
+                        <option value="Square">Square</option>
+                        <option value="Saw">Saw</option>
+                        <option value="Triangle">Triangle</option>
+                      </select>
+                      <button
+                        className="w-full text-[8px] bg-black rounded neon-border-cyan font-mono py-1"
+                        onClick={() => {
+                          const updatedPattern = [...currentTune.pattern];
+                          
+                          if (selectedNote.time === -1) {
+                            // Row editing mode - update all notes of this type
+                            updatedPattern.forEach((event, index) => {
+                              if (event.note === selectedNote.note || 
+                                 (Array.isArray(event.note) && event.note.includes(selectedNote.note))) {
+                                // Update the instrument for this note
+                                updatedPattern[index] = {
+                                  ...event,
+                                  synthType: selectedNoteSynth
+                                };
+                              }
+                            });
+                          } else {
+                            // Single note editing mode
+                            const noteIndex = updatedPattern.findIndex(
+                              (event) => Math.floor(event.time) === selectedNote.time && 
+                              (event.note === selectedNote.note || 
+                               (Array.isArray(event.note) && event.note.includes(selectedNote.note)))
+                            );
+                            
+                            if (noteIndex !== -1) {
+                              // Update the instrument for this specific note
+                              const noteEvent = {...updatedPattern[noteIndex]};
+                              noteEvent.synthType = selectedNoteSynth;
+                              updatedPattern[noteIndex] = noteEvent;
+                            }
+                          }
+                          
+                          setCurrentTune({
+                            ...currentTune,
+                            pattern: updatedPattern
+                          });
+                          
+                          setSelectedNote(null);
+                        }}
+                      >
+                        <span className="neon-text-cyan">APPLY</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1">
                   <button
@@ -1040,14 +1839,18 @@ export default function Home() {
                       onClick={saveTune}
                       title="Save"
                     >
-                      <Save className="w-3 h-3" />
+                      <div className="flex items-center justify-center w-full">
+                        <Save className="w-3 h-3" />
+                      </div>
                     </button>
                     <button
                       className="flex-1 py-1 bg-black rounded flex items-center justify-center neon-border-green"
                       onClick={loadTuneFile}
                       title="Load"
                     >
-                      <FolderOpen className="w-3 h-3" />
+                      <div className="flex items-center justify-center w-full">
+                        <FolderOpen className="w-3 h-3" />
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -1061,14 +1864,28 @@ export default function Home() {
                     {getVisibleBeatIndices().map((beatIndex) => (
                       <div
                         key={`h-${beatIndex}`}
-                        className={`text-center ${Math.floor(currentTime) === beatIndex ? "neon-text-pink font-bold" : "text-black dark:text-gray-600"} font-mono`}
+                        className={`text-center ${Math.floor(currentTime) === beatIndex ? "neon-text-pink font-bold" : "neon-text-blue font-mono"}`}
                       >
                         {beatIndex + 1}
                       </div>
                     ))}
                     {gridDisplay.map((row, rowIndex) => (
                       <React.Fragment key={`r-${rowIndex}`}>
-                        <div className={`text-right pr-1 font-mono truncate ${getNoteColor(ALL_NOTES[rowIndex])}`}>
+                        <div 
+                          className={`text-right pr-1 font-mono truncate ${getNoteColor(ALL_NOTES[rowIndex])} cursor-pointer`}
+                          onClick={() => {
+                            // Select the note type for the entire row
+                            setSelectedNote({note: ALL_NOTES[rowIndex], time: -1}); // Use -1 to indicate row editing
+                            
+                            // Find a note of this type to get its current synth type if possible
+                            const existingNote = currentTune.pattern.find(
+                              event => (event.note === ALL_NOTES[rowIndex] || 
+                                      (Array.isArray(event.note) && event.note.includes(ALL_NOTES[rowIndex])))
+                            );
+                            
+                            setSelectedNoteSynth(existingNote?.synthType || synthType);
+                          }}
+                        >
                           {ALL_NOTES[rowIndex]}
                         </div>
                         {row.map((cell, colIndex) => {
@@ -1076,8 +1893,13 @@ export default function Home() {
                           return (
                             <div
                               key={`c-${rowIndex}-${beatIndex}`}
-                              className={`w-full h-[14px] flex items-center justify-center ${Math.floor(currentTime) === beatIndex ? "bg-black dark:bg-black light:bg-blue-100" : ""} cursor-pointer`}
-                              onClick={() => {
+                              className="w-full h-[14px] flex items-center justify-center cursor-pointer relative"
+                              style={{
+                                backgroundColor: Math.floor(currentTime) === beatIndex 
+                                  ? (mode === "Light" ? "rgba(0, 102, 204, 0.1)" : "rgba(255, 0, 255, 0.07)") 
+                                  : "transparent"
+                              }}
+                              onClick={(e) => {
                                 const note = ALL_NOTES[rowIndex]
                                 const time = beatIndex
                                 const updatedPattern = [...currentTune.pattern]
@@ -1086,6 +1908,15 @@ export default function Home() {
                                     Math.floor(event.time) === time &&
                                     (event.note === note || (Array.isArray(event.note) && event.note.includes(note))),
                                 )
+                                
+                                // If Shift key is held, select note for editing instead of toggling
+                                if (e.shiftKey && existingEventIndex !== -1) {
+                                  const event = updatedPattern[existingEventIndex]
+                                  setSelectedNote({ note, time })
+                                  setSelectedNoteSynth(event.synthType || synthType)
+                                  return
+                                }
+                                
                                 if (existingEventIndex !== -1) {
                                   const event = updatedPattern[existingEventIndex]
                                   if (Array.isArray(event.note)) {
@@ -1117,20 +1948,25 @@ export default function Home() {
                               {cell.state.active && (
                                 <div
                                   className={`w-3 h-3 rounded-none ${
-                                    cell.state.isStart
-                                      ? "bg-white dark:bg-white light:bg-black"
-                                      : "bg-gray-400 dark:bg-gray-400 light:bg-gray-700"
+                                    Math.floor(currentTime) === beatIndex
+                                      ? (cell.state.isStart ? "bg-white dark:bg-white light:bg-black" : "bg-gray-400 dark:bg-gray-400 light:bg-gray-700")
+                                      : "border-2 bg-transparent"
                                   } ${
                                     Math.floor(currentTime) === beatIndex
-                                      ? getNoteColor(ALL_NOTES[rowIndex]).replace("text", "border") + " border"
-                                      : ""
+                                      ? getNoteColor(ALL_NOTES[rowIndex]).replace("text", "border")
+                                      : (cell.state.isStart ? "border-white dark:border-white light:border-black" : "border-gray-400 dark:border-gray-400 light:border-gray-700")
                                   }`}
                                   style={{
                                     opacity: 1,
                                     visibility: "visible",
                                     display: "block !important",
                                     zIndex: 10,
-                                    position: "relative",
+                                    position: "absolute",
+                                    top: "50%",
+                                    left: "50%",
+                                    transform: "translate(-50%, -50%)",
+                                    width: "10px",
+                                    height: "10px"
                                   }}
                                 ></div>
                               )}
@@ -1157,7 +1993,7 @@ export default function Home() {
                     style={{ rotate: crankRotation }}
                   >
                     <div
-                      className="w-6 h-12 bg-green-500"
+                      className="w-3 h-12 bg-green-500 crank-handle"
                       style={{
                         background: "linear-gradient(to right, #00ff00, #00aa00)",
                         boxShadow: "0 0 8px rgba(0, 255, 0, 0.6)",
@@ -1189,7 +2025,7 @@ export default function Home() {
           )}
         </div>
         <style jsx global>{`
-body{background-color:#000;color:#eee}
+body{background-color:#000;color:#eee;overflow:hidden;position:fixed;width:100%;height:100%}
 .light-mode{background-color:#fff;color:#000}
 .dark-mode{background-color:#000;color:#eee}
 .retro-grid{image-rendering:pixelated}
@@ -1245,6 +2081,7 @@ select{appearance:none;-webkit-appearance:none;-moz-appearance:none;background-i
 .light-mode .retro-panel{background-color:#f0f0f0!important;border:1px solid}
 .light-mode .text-gray-600{color:#000000!important}
 .dark-mode, .dark-mode *, html.dark, html.dark *, body.dark-mode, .dark-mode .retro-panel, .dark-mode .digital-display, .dark-mode .retro-grid, .dark-mode .bg-gray-900, .dark-mode [class*="bg-gray"], .dark-mode button, .dark-mode select, .dark-mode input, .dark-mode .settings-overlay, .dark-mode div, .dark-mode main, .dark-mode section {background-color: #000 !important;}
+.dark-mode .text-black {color: #0ff !important; opacity: 0.8 !important;}
 .dark-mode .w-1\.5.h-1\.5.bg-white, .dark-mode .w-1\.5.h-1\.5.bg-gray-500, .dark-mode .w-2.h-2.bg-white, .dark-mode .w-2.h-2.bg-gray-400, .dark-mode .w-3.h-3.bg-white, .dark-mode .w-3.h-3.bg-gray-400, .light-mode .w-1\.5.h-1\.5.bg-black, .light-mode .w-1\.5.h-1\.5.bg-gray-700, .light-mode .w-2.h-2.bg-black, .light-mode .w-2.h-2.bg-gray-700, .light-mode .w-3.h-3.bg-black, .light-mode .w-3.h-3.bg-gray-700, .bg-white, .bg-gray-400, .bg-black, .bg-gray-700, [class*="bg-white"], [class*="bg-gray-400"], [class*="bg-black"], [class*="bg-gray-700"] {opacity: 1 !important; visibility: visible !important; display: block !important; z-index: 10 !important; position: relative !important;}
 .grid-cols-9 > div > div {min-width: 8px !important; min-height: 8px !important; opacity: 1 !important; visibility: visible !important; display: block !important; z-index: 10 !important; position: relative !important;}
 .dark-mode .bg-white, .dark-mode .bg-gray-400, .light-mode .bg-black, .light-mode .bg-gray-700 {opacity: 1 !important; visibility: visible !important; display: block !important; z-index: 10 !important; position: relative !important;}
@@ -1254,6 +2091,7 @@ select{appearance:none;-webkit-appearance:none;-moz-appearance:none;background-i
 .grid-cols-9 > div > div {display: block !important; visibility: visible !important; opacity: 1 !important; z-index: 100 !important;}
 .dark-mode .grid-cols-9 > div > div {background-color: cyan !important; border: 1px solid white !important;}
 .light-mode .grid-cols-9 > div > div {background-color: blue !important; border: 1px solid black !important;}
+.light-mode .crank-handle {background: none !important; border: 2px solid black !important; box-shadow: none !important;}
 * {overflow: visible !important;}
 .grid-cols-9 > div {overflow: visible !important; position: relative !important;}
 .scrollable-grid {scrollbar-width: thin; scrollbar-color: var(--neon-purple) #000;}

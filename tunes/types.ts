@@ -8,6 +8,7 @@ export interface NoteEvent {
   note: NotePitch | NotePitch[] // Single note or chord
   duration: number // Duration in beats
   velocity?: number // Optional velocity parameter (0 to 1)
+  synthType?: SynthType // Optional per-note synthesizer type
 }
 
 export interface MidiNote {
